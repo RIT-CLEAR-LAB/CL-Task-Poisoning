@@ -103,14 +103,14 @@ def train(model: ContinualModel, dataset: ContinualDataset,
         dataset_copy = get_dataset(args)
         for t in range(dataset.N_TASKS):
             model.net.train()
-            _, _ = dataset_copy.get_data_loaders()
+            _, _ = dataset_copy.get_drifted_data_loaders(args)
         if model.NAME != 'icarl' and model.NAME != 'pnn':
             random_results_class, random_results_task = evaluate(model, dataset_copy)
 
     print(file=sys.stderr)
     for t in range(dataset.N_TASKS):
         model.net.train()
-        train_loader, test_loader = dataset.get_data_loaders()
+        train_loader, _ = dataset.get_drifted_data_loaders(args)
         if hasattr(model, 'begin_task'):
             model.begin_task(dataset)
         if t and not args.ignore_other_metrics:
