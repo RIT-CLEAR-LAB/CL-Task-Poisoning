@@ -16,6 +16,7 @@ from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import (ContinualDataset, store_masked_loaders, store_drifted_masked_loaders)
 from datasets.utils.validation import get_train_val
 from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
+import copy
 
 
 class TCIFAR10(CIFAR10):
@@ -131,10 +132,13 @@ class SequentialCIFAR10(ContinualDataset):
             SpeckleNoise(DRIFT_SEVERITY)
             ]
 
-        if (args.drift_type == -1):                     # regular CIL training without drift
-            DRIFT_TRANSFORM = self.TRANSFORM
-            TEST_DRIFT_TRANSFORM = self.TEST_TRANSFORM
-        else:                                           # drift applied to training and test data
+        train_dataset = MyCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=self.TRANSFORM)
+        test_dataset = TCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=self.TEST_TRANSFORM)
+
+        if (args.drift_type == -1):                                 # regular CIL training without drift
+            drifting_train_dataset = copy.deepcopy(train_dataset)
+            drifting_test_dataset = copy.deepcopy(test_dataset)
+        else:                                                       # drift applied to training and test data
             DRIFT_TRANSFORM = transforms.Compose([
                 DRIFTS[args.drift_type],
                 transforms.ToPILImage(),
@@ -149,14 +153,7 @@ class SequentialCIFAR10(ContinualDataset):
                 transforms.ToTensor(),
                 transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
                 ])
-
-        train_dataset = MyCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=self.TRANSFORM)
-        drifting_train_dataset = DriftingCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=DRIFT_TRANSFORM)
-
-        if self.args.validation:
-            train_dataset, test_dataset = get_train_val(train_dataset, self.TEST_TRANSFORM, self.NAME)
-        else:
-            test_dataset = TCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=self.TEST_TRANSFORM)
+            drifting_train_dataset = DriftingCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=DRIFT_TRANSFORM)
             drifting_test_dataset = TCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_DRIFT_TRANSFORM)
 
         train, test = store_drifted_masked_loaders(train_dataset=train_dataset, test_dataset=test_dataset, 
