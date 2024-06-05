@@ -225,3 +225,14 @@ class Buffer:
             if hasattr(self, attr_str):
                 delattr(self, attr_str)
         self.num_seen_examples = 0
+
+    def get_class_data(self, label: int) -> torch.Tensor:
+        """
+        Return all samples with given label.
+        If label not present in the buffer, then raise ValueError exception
+        """
+        idx = torch.argwhere(self.labels == label).flatten()
+        if len(idx) == 0:
+            raise ValueError(f'Class label {label} not present in the buffer')
+        class_samples = self.examples[idx]
+        return class_samples
