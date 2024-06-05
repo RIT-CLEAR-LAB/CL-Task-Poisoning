@@ -1,4 +1,5 @@
 import utils.buffer
+import numpy as np
 import pytest
 import torch
 import torchvision.transforms
@@ -79,3 +80,37 @@ def test_buffer_flush_class_removes_all_data():
     assert (labels[2:] == ret_labels).all()
     assert (logits[2:] == ret_logits).all()
     assert (task_labels[2:] == ret_task_labels).all()
+
+
+def test_ballanced_buffer():
+    buffer = utils.buffer.Buffer(6, 'cpu', mode='balanced')
+    examples = get_sample_images(6)
+    labels = torch.Tensor([1, 1, 2, 2, 2, 2])
+    buffer.add_data(examples, labels)
+
+    new_examples = get_sample_images(2)
+    new_labels = torch.Tensor([3, 3])
+    np.random.seed(0)
+    buffer.add_data(new_examples, new_labels)
+
+    _, updated_labels = buffer.get_all_data()
+    buffer_classes, class_counts = torch.unique(updated_labels, return_counts=True)
+    assert (buffer_classes == torch.Tensor([1, 2, 3])).all()
+    assert (class_counts == torch.Tensor([2, 2, 2])).all()
+
+
+def test_ballanced_buffer_other_class_counts():
+    buffer = utils.buffer.Buffer(4, 'cpu', mode='balanced')
+    examples = get_sample_images(4)
+    labels = torch.Tensor([1, 1, 2, 2])
+    buffer.add_data(examples, labels)
+
+    new_examples = get_sample_images(2)
+    new_labels = torch.Tensor([3, 3])
+    np.random.seed(1)
+    buffer.add_data(new_examples, new_labels)
+
+    _, updated_labels = buffer.get_all_data()
+    buffer_classes, class_counts = torch.unique(updated_labels, return_counts=True)
+    assert (buffer_classes == torch.Tensor([1, 2, 3])).all()
+    assert (class_counts == torch.Tensor([1, 1, 2])).all()

@@ -79,6 +79,29 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
         return -1
 
 
+def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, labels: torch.Tensor) -> int:
+    """
+    Balanced reservoir sampling algorithm.
+    :param num_seen_examples: the number of seen examples
+    :param buffer_size: the maximum buffer size
+    :return: the target index if the current image is sampled, else -1
+    """
+    if num_seen_examples < buffer_size:
+        return num_seen_examples
+
+    rand = np.random.randint(0, num_seen_examples + 1)
+    if rand < buffer_size:
+        classes, counts = torch.unique(labels, return_counts=True)
+        i = torch.argmax(counts).item()
+        l = classes[i]
+        idx = torch.argwhere(labels == l).flatten()
+        rand_idx = np.random.randint(0, len(idx))
+        rand = idx[rand_idx]
+        return rand
+    else:
+        return -1
+
+
 def ring(num_seen_examples: int, buffer_portion_size: int, task: int) -> int:
     return num_seen_examples % buffer_portion_size + task * buffer_portion_size
 
@@ -89,11 +112,11 @@ class Buffer:
     """
 
     def __init__(self, buffer_size, device, n_tasks=None, mode='reservoir'):
-        assert mode in ('ring', 'reservoir')
+        assert mode in ('ring', 'reservoir', 'balanced')
+        self.mode = mode
         self.buffer_size = buffer_size
         self.device = device
         self.num_seen_examples = 0
-        self.functional_index = eval(mode)
         if mode == 'ring':
             assert n_tasks is not None
             self.task_number = n_tasks
@@ -139,7 +162,12 @@ class Buffer:
             self.init_tensors(examples, labels, logits, task_labels)
 
         for i in range(examples.shape[0]):
-            index = reservoir(self.num_seen_examples, self.buffer_size)
+            if self.mode == 'reservoir' or self.mode == 'ring':
+                index = reservoir(self.num_seen_examples, self.buffer_size)
+            elif self.mode == 'balanced':
+                index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.labels)
+            else:
+                raise ValueError('Invalid mode')
             self.num_seen_examples += 1
             if index >= 0:
                 self.examples[index] = examples[i].to(self.device)
