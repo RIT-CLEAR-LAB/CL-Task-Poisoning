@@ -20,11 +20,11 @@ def get_sample_images(n):
 
 
 def test_buffer_get_data_works():
-    buf = utils.buffer.Buffer(4, 'cpu')
+    buffer = utils.buffer.Buffer(4, 'cpu')
     examples = get_sample_images(4)
     labels = torch.Tensor([1, 1, 2, 2])
-    buf.add_data(examples, labels)
-    ret_examples, ret_labels = buf.get_all_data()
+    buffer.add_data(examples, labels)
+    ret_examples, ret_labels = buffer.get_all_data()
     assert (examples == ret_examples).all()
     assert (ret_labels == labels).all()
 
@@ -49,3 +49,33 @@ def test_buffer_get_class_data_raises_exception():
 
     with pytest.raises(ValueError):
         samples1 = buffer.get_class_data(3)
+
+
+def test_buffer_flush_class_removes_samples():
+    buffer = utils.buffer.Buffer(4, 'cpu')
+    examples = get_sample_images(4)
+    labels = torch.Tensor([1, 1, 2, 2])
+    buffer.add_data(examples, labels)
+
+    buffer.flush_class(1)
+    assert len(buffer) == 2
+    ret_examples, ret_labels = buffer.get_all_data()
+    assert (examples[2:] == ret_examples).all()
+    assert (labels[2:] == ret_labels).all()
+
+
+def test_buffer_flush_class_removes_all_data():
+    buffer = utils.buffer.Buffer(4, 'cpu')
+    examples = get_sample_images(4)
+    labels = torch.Tensor([1, 1, 2, 2])
+    logits = torch.Tensor([0.9, 0.8, 0.2, 0.7])
+    task_labels = torch.Tensor([1, 1, 1, 1])
+    buffer.add_data(examples, labels, logits, task_labels)
+
+    buffer.flush_class(1)
+    assert len(buffer) == 2
+    ret_examples, ret_labels, ret_logits, ret_task_labels = buffer.get_all_data()
+    assert (examples[2:] == ret_examples).all()
+    assert (labels[2:] == ret_labels).all()
+    assert (logits[2:] == ret_logits).all()
+    assert (task_labels[2:] == ret_task_labels).all()
