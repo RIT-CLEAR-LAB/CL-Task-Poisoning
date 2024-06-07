@@ -32,6 +32,7 @@ class ContinualDataset:
         self.test_loaders = []
         self.i = 0
         self.args = args
+        self.drifting_classes = []
 
         if not all((self.NAME, self.SETTING, self.N_CLASSES_PER_TASK, self.N_TASKS)):
             raise NotImplementedError(
@@ -174,6 +175,8 @@ def store_drifted_masked_loaders(train_dataset: Dataset, test_dataset: Dataset, 
 
         assert len(setting.test_loaders) > 0
         setting.test_loaders[len(setting.test_loaders) - 1] = drifted_test_loader   # replacing previous testloader with drifted images
+
+        setting.drifting_classes = np.arange(setting.i - setting.N_CLASSES_PER_TASK, setting.i)
 
     test_loader = DataLoader(test_dataset, batch_size=setting.args.batch_size, shuffle=False, num_workers=4)
 

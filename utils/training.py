@@ -12,7 +12,7 @@ import torch
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
-
+from drift_detection import detect_drift
 from utils.loggers import *
 from utils.status import ProgressBar
 
@@ -118,7 +118,7 @@ def train(model: ContinualModel, dataset: ContinualDataset,
             results[t-1] = results[t-1] + accs[0]
             if dataset.SETTING == 'class-il':
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
-
+        detect_drift(dataset.drifting_classes, train_loader, model)
         scheduler = dataset.get_scheduler(model, args)
         for epoch in range(model.args.n_epochs):
             if args.model == 'joint':

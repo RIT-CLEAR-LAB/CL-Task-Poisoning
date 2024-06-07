@@ -7,3 +7,4 @@ wandb
 onedrivedownloader
 av
 tqdm
+alibi-detect
