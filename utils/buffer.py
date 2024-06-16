@@ -271,10 +271,15 @@ class Buffer:
         If label not present in the buffer, then raise ValueError exception.
         """
         idx = torch.argwhere(self.labels != label).flatten()
+        num_removed = len(self.labels) - len(idx)
         if len(idx) == 0:
             raise ValueError(f'Class label {label} not present in the buffer')
         for attr_str in self.attributes:
             if hasattr(self, attr_str):
                 tensor = getattr(self, attr_str)
-                setattr(self, attr_str, tensor[idx])
-        self.num_seen_examples -= len(idx)
+                typ = torch.int64 if attr_str.endswith('els') else torch.float32
+                zeros_padding = torch.zeros((num_removed, *tensor.shape[1:]), dtype=typ, device=self.device)
+                new_tensor = torch.cat([tensor[idx], zeros_padding], dim=0)
+                assert new_tensor.shape == tensor.shape
+                setattr(self, attr_str, new_tensor)
+        self.num_seen_examples -= num_removed
