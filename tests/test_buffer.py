@@ -9,7 +9,7 @@ from torchvision.datasets import CIFAR10
 
 
 def get_sample_images(n):
-    dataset = CIFAR10(base_path() + 'CIFAR10')
+    dataset = CIFAR10(base_path() + 'CIFAR10', download=True)
     images = list()
     to_tensor = torchvision.transforms.ToTensor()
     for i in range(n):
@@ -61,8 +61,43 @@ def test_buffer_flush_class_removes_samples():
     buffer.flush_class(1)
     assert len(buffer) == 2
     ret_examples, ret_labels = buffer.get_all_data()
-    assert (examples[2:] == ret_examples).all()
-    assert (labels[2:] == ret_labels).all()
+    assert (examples[2:] == ret_examples[:buffer.num_seen_examples]).all()
+    assert (labels[2:] == ret_labels[:buffer.num_seen_examples]).all()
+    assert buffer.num_seen_examples == 2
+
+
+def test_buffer_flush_class_removes_samples1():
+    buffer = utils.buffer.Buffer(6, 'cpu')
+    examples = get_sample_images(6)
+    labels = torch.Tensor([1, 1, 2, 2, 3, 3])
+    buffer.add_data(examples, labels)
+
+    buffer.flush_class(1)
+    assert len(buffer) == 4
+    ret_examples, ret_labels = buffer.get_all_data()
+    assert (examples[2:] == ret_examples[:buffer.num_seen_examples]).all()
+    assert (labels[2:] == ret_labels[:buffer.num_seen_examples]).all()
+    assert buffer.num_seen_examples == 4
+
+
+def test_buffer_after_flush_class_add_data_works():
+    buffer = utils.buffer.Buffer(6, 'cpu')
+    all_examples = get_sample_images(7)
+    examples = all_examples[:6]
+    labels = torch.Tensor([1, 1, 2, 2, 3, 3])
+    buffer.add_data(examples, labels)
+
+    buffer.flush_class(1)
+    new_example = all_examples[6:]
+    new_label = torch.Tensor([4])
+    buffer.add_data(new_example, new_label)
+
+    assert len(buffer) == 5
+    ret_examples, ret_labels = buffer.get_all_data()
+    assert (all_examples[2:] == ret_examples[:buffer.num_seen_examples]).all()
+    assert (labels[2:] == ret_labels[:4]).all()
+    assert (new_label == ret_labels[4]).all()
+    assert buffer.num_seen_examples == 5
 
 
 def test_buffer_flush_class_removes_all_data():
@@ -76,10 +111,11 @@ def test_buffer_flush_class_removes_all_data():
     buffer.flush_class(1)
     assert len(buffer) == 2
     ret_examples, ret_labels, ret_logits, ret_task_labels = buffer.get_all_data()
-    assert (examples[2:] == ret_examples).all()
-    assert (labels[2:] == ret_labels).all()
-    assert (logits[2:] == ret_logits).all()
-    assert (task_labels[2:] == ret_task_labels).all()
+    assert (examples[2:] == ret_examples[:buffer.num_seen_examples]).all()
+    assert (labels[2:] == ret_labels[:buffer.num_seen_examples]).all()
+    assert (logits[2:] == ret_logits[:buffer.num_seen_examples]).all()
+    assert (task_labels[2:] == ret_task_labels[:buffer.num_seen_examples]).all()
+    assert buffer.num_seen_examples == 2
 
 
 def test_ballanced_buffer():
