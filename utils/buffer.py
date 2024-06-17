@@ -266,11 +266,11 @@ class Buffer:
         return class_samples
 
     def get_class_sample_count(self, label: int) -> torch.Tensor:
-      """
-      Return number of samples present in the buffer with given label.
-      """
-      idx = torch.argwhere(self.labels == label).flatten()
-      return len(idx)
+        """
+        Return number of samples present in the buffer with given label.
+        """
+        idx = torch.argwhere(self.labels == label).flatten()
+        return len(idx)
 
     def flush_class(self, label: int) -> None:
         """
