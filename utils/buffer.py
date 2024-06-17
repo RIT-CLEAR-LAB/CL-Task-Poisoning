@@ -271,10 +271,16 @@ class Buffer:
         If label not present in the buffer, then raise ValueError exception.
         """
         idx = torch.argwhere(self.labels != label).flatten()
-        if len(idx) == 0:
-            raise ValueError(f'Class label {label} not present in the buffer')
+
         for attr_str in self.attributes:
             if hasattr(self, attr_str):
                 tensor = getattr(self, attr_str)
                 setattr(self, attr_str, tensor[idx])
         self.num_seen_examples -= len(idx)
+
+    def get_class_sample_count(self, label: int) -> torch.Tensor:
+        """
+        Return number of samples present in the buffer with given label.
+        """
+        idx = torch.argwhere(self.labels == label).flatten()
+        return len(idx)

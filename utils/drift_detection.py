@@ -6,7 +6,6 @@ from torchvision.models import ResNet18_Weights
 from functools import partial
 from alibi_detect.cd.pytorch import preprocess_drift
 from alibi_detect.cd import MMDDrift, ClassifierUncertaintyDrift
-from timeit import default_timer as timer
 
 def initialize_detector(ref_data, device):
     encoding_dim = 32
@@ -44,14 +43,11 @@ def detect_drift(drifting_classes, train_loader, model):
         if new_images.size(0) > 0:
             ref_samples = model.buffer.get_class_data(cls)
             drift_detector = initialize_detector(ref_samples, model.device)
-            t = timer()
             preds = drift_detector.predict(new_images)
-            dt = timer() - t
             print('')
             print(f"Drift in class {cls}? {labels[preds['data']['is_drift']]}")
             print(f'p-value: {preds["data"]["p_val"]:.3f}')
             print(f'MMD-Distance: {preds["data"]["distance"]:.3f}')
-            print(f'Time: {dt:.3f}s\n')
 
 def initialize_uncertainty_detector(ref_data, device):
     encoding_dim = 32
@@ -83,11 +79,13 @@ def detect_uncertainty_drift(drifting_classes, train_loader, model):
         if new_images.size(0) > 0:
             ref_samples = model.buffer.get_class_data(cls)
             drift_detector = initialize_uncertainty_detector(ref_samples, model.device)
-            t = timer()
             preds = drift_detector.predict(new_images)
-            dt = timer() - t
             print('')
             print(f"Drift in class {cls}? {labels[preds['data']['is_drift']]}")
             print(f"Feature-wise p-values: {', '.join([f'{p_val:.3f}' for p_val in preds['data']['p_val']])}")
-            print(f'Time: {dt:.3f}s\n')
 
+            print(f"Class {cls} in buffer before flushing: {model.buffer.get_class_sample_count(cls)}")
+            if preds['data']['is_drift']:       # removing drifted samples from buffer
+                print(f'Flushing class {cls} from buffer...')
+                model.buffer.flush_class(cls)
+            print(f"Class {cls} in buffer after flushing: {model.buffer.get_class_sample_count(cls)}")
