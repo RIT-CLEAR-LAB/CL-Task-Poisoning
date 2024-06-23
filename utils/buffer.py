@@ -62,7 +62,7 @@ def icarl_replay(self, dataset, val_set_split=0):
             ])
 
 
-def reservoir(num_seen_examples: int, buffer_size: int) -> int:
+def reservoir(num_seen_examples: int, buffer_size: int, current_size: int) -> int:
     """
     Reservoir sampling algorithm.
     :param num_seen_examples: the number of seen examples
@@ -72,6 +72,9 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
     if num_seen_examples < buffer_size:
         return num_seen_examples
 
+    if current_size < buffer_size:
+        return current_size
+
     rand = np.random.randint(0, num_seen_examples + 1)
     if rand < buffer_size:
         return rand
@@ -79,7 +82,7 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
         return -1
 
 
-def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, labels: torch.Tensor) -> int:
+def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, current_size: int, labels: torch.Tensor) -> int:
     """
     Balanced reservoir sampling algorithm.
     :param num_seen_examples: the number of seen examples
@@ -88,6 +91,9 @@ def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, labels
     """
     if num_seen_examples < buffer_size:
         return num_seen_examples
+
+    if current_size < buffer_size:
+        return current_size
 
     rand = np.random.randint(0, num_seen_examples + 1)
     if rand < buffer_size:
@@ -163,15 +169,15 @@ class Buffer:
 
         for i in range(examples.shape[0]):
             if self.mode == 'reservoir' or self.mode == 'ring':
-                index = reservoir(self.num_seen_examples, self.buffer_size)
+                index = reservoir(self.num_seen_examples, self.buffer_size, self.current_size)
             elif self.mode == 'balanced':
-                index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.labels)
+                index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.current_size, self.labels)
             else:
                 raise ValueError('Invalid mode')
             self.num_seen_examples += 1
-            self.current_size += 1
-            self.current_size = min(self.current_size, self.buffer_size)
             if index >= 0:
+                self.current_size += 1
+                self.current_size = min(self.current_size, self.buffer_size)
                 self.examples[index] = examples[i].to(self.device)
                 if labels is not None:
                     self.labels[index] = labels[i].to(self.device)
@@ -190,8 +196,8 @@ class Buffer:
         if size > min(self.num_seen_examples, self.examples.shape[0], self.current_size):
             size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
 
-        choice = np.random.choice(min(self.num_seen_examples, self.examples.shape[0], self.current_size),
-                                  size=size, replace=False)
+        cur_size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
+        choice = np.random.choice(cur_size, size=size, replace=False)
         if transform is None:
             def transform(x): return x
         ret_tuple = (torch.stack([transform(ee.cpu()) for ee in self.examples[choice]]).to(self.device),)
