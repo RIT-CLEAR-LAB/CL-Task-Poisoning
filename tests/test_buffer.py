@@ -124,7 +124,7 @@ def test_buffer_after_removing_all_data_buffer_is_empty():
     buffer.flush_class(2)
     buffer.flush_class(3)
     assert len(buffer) == 0
-    assert buffer.num_seen_examples == 0
+    assert buffer.current_size == 0
 
 
 def test_buffer_after_flush_class_add_data_works():

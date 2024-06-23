@@ -117,6 +117,7 @@ class Buffer:
         self.buffer_size = buffer_size
         self.device = device
         self.num_seen_examples = 0
+        self.current_size = 0
         if mode == 'ring':
             assert n_tasks is not None
             self.task_number = n_tasks
@@ -131,7 +132,7 @@ class Buffer:
         return self
 
     def __len__(self):
-        return min(self.num_seen_examples, self.buffer_size)
+        return min(self.num_seen_examples, self.current_size, self.buffer_size)
 
     def init_tensors(self, examples: torch.Tensor, labels: torch.Tensor,
                      logits: torch.Tensor, task_labels: torch.Tensor) -> None:
@@ -168,6 +169,8 @@ class Buffer:
             else:
                 raise ValueError('Invalid mode')
             self.num_seen_examples += 1
+            self.current_size += 1
+            self.current_size = min(self.current_size, self.buffer_size)
             if index >= 0:
                 self.examples[index] = examples[i].to(self.device)
                 if labels is not None:
@@ -184,10 +187,10 @@ class Buffer:
         :param transform: the transformation to be applied (data augmentation)
         :return:
         """
-        if size > min(self.num_seen_examples, self.examples.shape[0]):
-            size = min(self.num_seen_examples, self.examples.shape[0])
+        if size > min(self.num_seen_examples, self.examples.shape[0], self.current_size):
+            size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
 
-        choice = np.random.choice(min(self.num_seen_examples, self.examples.shape[0]),
+        choice = np.random.choice(min(self.num_seen_examples, self.examples.shape[0], self.current_size),
                                   size=size, replace=False)
         if transform is None:
             def transform(x): return x
@@ -223,7 +226,7 @@ class Buffer:
         """
         Returns true if the buffer is empty, false otherwise.
         """
-        if self.num_seen_examples == 0:
+        if self.num_seen_examples == 0 or self.current_size == 0:
             return True
         else:
             return False
@@ -252,6 +255,7 @@ class Buffer:
             if hasattr(self, attr_str):
                 delattr(self, attr_str)
         self.num_seen_examples = 0
+        self.current_size = 0
 
     def get_class_data(self, label: int) -> torch.Tensor:
         """
@@ -288,4 +292,5 @@ class Buffer:
                 new_tensor = torch.cat([tensor[idx], padding], dim=0)
                 assert new_tensor.shape == tensor.shape
                 setattr(self, attr_str, new_tensor)
-        self.num_seen_examples = len(self) - num_removed
+        self.current_size = len(self) - num_removed
+        self.num_seen_examples -= num_removed
