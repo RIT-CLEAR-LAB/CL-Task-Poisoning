@@ -80,6 +80,53 @@ def test_buffer_flush_class_removes_samples1():
     assert buffer.num_seen_examples == 4
 
 
+def test_buffer_after_flush_class_can_sample_data():
+    buffer = utils.buffer.Buffer(6, 'cpu')
+    examples = get_sample_images(6)
+    labels = torch.Tensor([1, 1, 2, 2, 3, 3])
+    buffer.add_data(examples, labels)
+
+    buffer.flush_class(1)
+    assert len(buffer) == 4
+    assert buffer.num_seen_examples == 4
+
+    for _ in range(50):
+        _, buf_labels = buffer.get_data(2)
+        classes = torch.unique(buf_labels).tolist()
+        assert max(classes) <= 3
+        assert min(classes) >= 2
+
+
+def test_buffer_after_flush_class_can_sample_data1():
+    buffer = utils.buffer.Buffer(10, 'cpu')
+    examples = get_sample_images(8)
+    labels = torch.Tensor([0, 0, 1, 1, 2, 2, 3, 3])
+    buffer.add_data(examples, labels)
+
+    buffer.flush_class(0)
+    assert len(buffer) == 6
+    assert buffer.num_seen_examples == 6
+
+    for _ in range(50):
+        _, buf_labels = buffer.get_data(2)
+        classes = torch.unique(buf_labels).tolist()
+        assert max(classes) <= 3
+        assert min(classes) >= 1
+
+
+def test_buffer_after_removing_all_data_buffer_is_empty():
+    buffer = utils.buffer.Buffer(4, 'cpu')
+    examples = get_sample_images(6)
+    labels = torch.Tensor([1, 1, 2, 2, 3, 3])
+    buffer.add_data(examples, labels)
+
+    buffer.flush_class(1)
+    buffer.flush_class(2)
+    buffer.flush_class(3)
+    assert len(buffer) == 0
+    assert buffer.num_seen_examples == 0
+
+
 def test_buffer_after_flush_class_add_data_works():
     buffer = utils.buffer.Buffer(6, 'cpu')
     all_examples = get_sample_images(7)

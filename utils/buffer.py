@@ -146,8 +146,7 @@ class Buffer:
             attr = eval(attr_str)
             if attr is not None and not hasattr(self, attr_str):
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
-                setattr(self, attr_str, torch.zeros((self.buffer_size,
-                        *attr.shape[1:]), dtype=typ, device=self.device))
+                setattr(self, attr_str, torch.full((self.buffer_size, *attr.shape[1:]), fill_value=-1, dtype=typ, device=self.device))
 
     def add_data(self, examples, labels=None, logits=None, task_labels=None):
         """
@@ -285,8 +284,8 @@ class Buffer:
             if hasattr(self, attr_str):
                 tensor = getattr(self, attr_str)
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
-                zeros_padding = torch.zeros((num_removed, *tensor.shape[1:]), dtype=typ, device=self.device)
-                new_tensor = torch.cat([tensor[idx], zeros_padding], dim=0)
+                padding = torch.full((num_removed, *tensor.shape[1:]), fill_value=-1, dtype=typ, device=self.device)
+                new_tensor = torch.cat([tensor[idx], padding], dim=0)
                 assert new_tensor.shape == tensor.shape
                 setattr(self, attr_str, new_tensor)
-        self.num_seen_examples -= num_removed
+        self.num_seen_examples = len(self) - num_removed
