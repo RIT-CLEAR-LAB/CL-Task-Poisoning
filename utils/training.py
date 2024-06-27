@@ -7,7 +7,8 @@ import math
 import sys
 from argparse import Namespace
 from typing import Tuple
-
+import json
+from datetime import datetime
 import torch
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset
@@ -167,7 +168,9 @@ def train(model: ContinualModel, dataset: ContinualDataset,
 
             wandb.log(d2)
 
-
+    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-drift-{args.drift_type}-task-accuracies.json", 
+              'w') as jsonfile:
+        json.dump({'task_accuracies': results}, jsonfile)
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)

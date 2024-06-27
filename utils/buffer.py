@@ -278,8 +278,11 @@ class Buffer:
         """
         Return number of samples present in the buffer with given label.
         """
-        idx = torch.argwhere(self.labels == label).flatten()
-        return len(idx)
+        if hasattr(self, 'labels'):
+            idx = torch.argwhere(self.labels == label).flatten()
+            return len(idx)
+        else:
+            return 0
 
     def flush_class(self, label: int) -> None:
         """
@@ -288,7 +291,7 @@ class Buffer:
         """
         idx = torch.argwhere(self.labels != label).flatten()
         num_removed = len(self.labels) - len(idx)
-        if len(idx) == 0:
+        if num_removed == 0:
             raise ValueError(f'Class label {label} not present in the buffer')
         for attr_str in self.attributes:
             if hasattr(self, attr_str):
@@ -300,3 +303,4 @@ class Buffer:
                 setattr(self, attr_str, new_tensor)
         self.current_size = len(self) - num_removed
         self.num_seen_examples -= num_removed
+        print(f"Class {label} samples removed: {num_removed}")
