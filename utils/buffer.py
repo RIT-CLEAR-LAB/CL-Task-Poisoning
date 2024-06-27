@@ -62,7 +62,7 @@ def icarl_replay(self, dataset, val_set_split=0):
             ])
 
 
-def reservoir(num_seen_examples: int, buffer_size: int) -> int:
+def reservoir(num_seen_examples: int, buffer_size: int, current_size: int) -> int:
     """
     Reservoir sampling algorithm.
     :param num_seen_examples: the number of seen examples
@@ -72,6 +72,9 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
     if num_seen_examples < buffer_size:
         return num_seen_examples
 
+    if current_size < buffer_size:
+        return current_size
+
     rand = np.random.randint(0, num_seen_examples + 1)
     if rand < buffer_size:
         return rand
@@ -79,7 +82,7 @@ def reservoir(num_seen_examples: int, buffer_size: int) -> int:
         return -1
 
 
-def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, labels: torch.Tensor) -> int:
+def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, current_size: int, labels: torch.Tensor) -> int:
     """
     Balanced reservoir sampling algorithm.
     :param num_seen_examples: the number of seen examples
@@ -88,6 +91,9 @@ def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, labels
     """
     if num_seen_examples < buffer_size:
         return num_seen_examples
+
+    if current_size < buffer_size:
+        return current_size
 
     rand = np.random.randint(0, num_seen_examples + 1)
     if rand < buffer_size:
@@ -117,6 +123,7 @@ class Buffer:
         self.buffer_size = buffer_size
         self.device = device
         self.num_seen_examples = 0
+        self.current_size = 0
         if mode == 'ring':
             assert n_tasks is not None
             self.task_number = n_tasks
@@ -131,7 +138,7 @@ class Buffer:
         return self
 
     def __len__(self):
-        return min(self.num_seen_examples, self.buffer_size)
+        return min(self.num_seen_examples, self.current_size, self.buffer_size)
 
     def init_tensors(self, examples: torch.Tensor, labels: torch.Tensor,
                      logits: torch.Tensor, task_labels: torch.Tensor) -> None:
@@ -146,8 +153,7 @@ class Buffer:
             attr = eval(attr_str)
             if attr is not None and not hasattr(self, attr_str):
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
-                setattr(self, attr_str, torch.zeros((self.buffer_size,
-                        *attr.shape[1:]), dtype=typ, device=self.device))
+                setattr(self, attr_str, torch.full((self.buffer_size, *attr.shape[1:]), fill_value=-1, dtype=typ, device=self.device))
 
     def add_data(self, examples, labels=None, logits=None, task_labels=None):
         """
@@ -163,13 +169,15 @@ class Buffer:
 
         for i in range(examples.shape[0]):
             if self.mode == 'reservoir' or self.mode == 'ring':
-                index = reservoir(self.num_seen_examples, self.buffer_size)
+                index = reservoir(self.num_seen_examples, self.buffer_size, self.current_size)
             elif self.mode == 'balanced':
-                index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.labels)
+                index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.current_size, self.labels)
             else:
                 raise ValueError('Invalid mode')
             self.num_seen_examples += 1
             if index >= 0:
+                self.current_size += 1
+                self.current_size = min(self.current_size, self.buffer_size)
                 self.examples[index] = examples[i].to(self.device)
                 if labels is not None:
                     self.labels[index] = labels[i].to(self.device)
@@ -185,11 +193,11 @@ class Buffer:
         :param transform: the transformation to be applied (data augmentation)
         :return:
         """
-        if size > min(self.num_seen_examples, self.examples.shape[0]):
-            size = min(self.num_seen_examples, self.examples.shape[0])
+        if size > min(self.num_seen_examples, self.examples.shape[0], self.current_size):
+            size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
 
-        choice = np.random.choice(min(self.num_seen_examples, self.examples.shape[0]),
-                                  size=size, replace=False)
+        cur_size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
+        choice = np.random.choice(cur_size, size=size, replace=False)
         if transform is None:
             def transform(x): return x
         ret_tuple = (torch.stack([transform(ee.cpu()) for ee in self.examples[choice]]).to(self.device),)
@@ -224,7 +232,7 @@ class Buffer:
         """
         Returns true if the buffer is empty, false otherwise.
         """
-        if self.num_seen_examples == 0:
+        if self.num_seen_examples == 0 or self.current_size == 0:
             return True
         else:
             return False
@@ -253,6 +261,7 @@ class Buffer:
             if hasattr(self, attr_str):
                 delattr(self, attr_str)
         self.num_seen_examples = 0
+        self.current_size = 0
 
     def get_class_data(self, label: int) -> torch.Tensor:
         """
@@ -265,6 +274,16 @@ class Buffer:
         class_samples = self.examples[idx]
         return class_samples
 
+    def get_class_sample_count(self, label: int) -> torch.Tensor:
+        """
+        Return number of samples present in the buffer with given label.
+        """
+        if hasattr(self, 'labels'):
+            idx = torch.argwhere(self.labels == label).flatten()
+            return len(idx)
+        else:
+            return 0
+
     def flush_class(self, label: int) -> None:
         """
         Removes all samples with given label.
@@ -272,14 +291,16 @@ class Buffer:
         """
         idx = torch.argwhere(self.labels != label).flatten()
         num_removed = len(self.labels) - len(idx)
-        if len(idx) == 0:
+        if num_removed == 0:
             raise ValueError(f'Class label {label} not present in the buffer')
         for attr_str in self.attributes:
             if hasattr(self, attr_str):
                 tensor = getattr(self, attr_str)
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
-                zeros_padding = torch.zeros((num_removed, *tensor.shape[1:]), dtype=typ, device=self.device)
-                new_tensor = torch.cat([tensor[idx], zeros_padding], dim=0)
+                padding = torch.full((num_removed, *tensor.shape[1:]), fill_value=-1, dtype=typ, device=self.device)
+                new_tensor = torch.cat([tensor[idx], padding], dim=0)
                 assert new_tensor.shape == tensor.shape
                 setattr(self, attr_str, new_tensor)
+        self.current_size = len(self) - num_removed
         self.num_seen_examples -= num_removed
+        print(f"Class {label} samples removed: {num_removed}")

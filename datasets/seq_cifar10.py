@@ -98,14 +98,14 @@ class SequentialCIFAR10(ContinualDataset):
     N_CLASSES_PER_TASK = 2
     N_TASKS = 5
     TRANSFORM = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
+        # transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
     TEST_TRANSFORM = transforms.Compose([
         transforms.ToTensor(), 
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
 
     def get_data_loaders(self):
@@ -142,16 +142,16 @@ class SequentialCIFAR10(ContinualDataset):
             DRIFT_TRANSFORM = transforms.Compose([
                 DRIFTS[args.drift_type],
                 transforms.ToPILImage(),
-                transforms.RandomCrop(32, padding=4),
+                # transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+                # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
                 ])
             TEST_DRIFT_TRANSFORM = transforms.Compose([
                 DRIFTS[args.drift_type],
                 transforms.ToPILImage(),
                 transforms.ToTensor(),
-                transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+                # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
                 ])
             drifting_train_dataset = DriftingCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=DRIFT_TRANSFORM)
             drifting_test_dataset = TCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_DRIFT_TRANSFORM)
