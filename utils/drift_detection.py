@@ -78,10 +78,12 @@ def detect_uncertainty_drift(drifting_classes, train_loader, model):
 
         if new_images.size(0) > 0:
             ref_samples = model.buffer.get_class_data(cls)
-            drift_detector = initialize_uncertainty_detector(ref_samples, model.device)
-            preds = drift_detector.predict(new_images)
-            print(f"Drift in class {cls}? {labels[preds['data']['is_drift']]}")
-            print(f"Feature-wise p-values: {', '.join([f'{p_val:.3f}' for p_val in preds['data']['p_val']])}")
+            if not isinstance(ref_samples, int):
+                drift_detector = initialize_uncertainty_detector(ref_samples, model.device)
+                preds = drift_detector.predict(new_images)
+                print(f"Drift in class {cls}? {labels[preds['data']['is_drift']]}")
+                print(f"Feature-wise p-values: {', '.join([f'{p_val:.3f}' for p_val in preds['data']['p_val']])}")
 
-            if preds['data']['is_drift']:       # removing drifted samples from buffer
-                model.buffer.flush_class(cls)
+                if preds['data']['is_drift']:       # removing drifted samples from buffer
+                    model.buffer.flush_class(cls)
+

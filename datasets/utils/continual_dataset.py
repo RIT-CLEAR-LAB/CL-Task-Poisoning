@@ -149,15 +149,15 @@ def store_drifted_masked_loaders(train_dataset: Dataset, test_dataset: Dataset, 
 
     # selecting the unseen second half of the previous class to apply drift
     drifting_train_dataset.data = drifting_train_dataset.data[train_drift_mask]
-    drifting_train_dataset.data = drifting_train_dataset.data[len(drifting_train_dataset.data)//2:]
+    # drifting_train_dataset.data = drifting_train_dataset.data[len(drifting_train_dataset.data)//2:]
     drifting_train_dataset.targets = np.array(drifting_train_dataset.targets)[train_drift_mask]
-    drifting_train_dataset.targets = drifting_train_dataset.targets[len(drifting_train_dataset.targets)//2:]
+    # drifting_train_dataset.targets = drifting_train_dataset.targets[len(drifting_train_dataset.targets)//2:]
 
     # selecting half of the task classes for training and leaving the rest for drift in the next iteration
     train_dataset.data = train_dataset.data[train_mask]
-    train_dataset.data = train_dataset.data[: len(train_dataset.data)//2]
+    # train_dataset.data = train_dataset.data[: len(train_dataset.data)//2]
     train_dataset.targets = np.array(train_dataset.targets)[train_mask]
-    train_dataset.targets = train_dataset.targets[: len(train_dataset.targets)//2]
+    # train_dataset.targets = train_dataset.targets[: len(train_dataset.targets)//2]
 
     drifting_test_dataset.data = drifting_test_dataset.data[test_drift_mask]
     drifting_test_dataset.targets = np.array(drifting_test_dataset.targets)[test_drift_mask]

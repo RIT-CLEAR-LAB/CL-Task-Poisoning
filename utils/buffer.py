@@ -117,7 +117,7 @@ class Buffer:
     The memory buffer of rehearsal method.
     """
 
-    def __init__(self, buffer_size, device, n_tasks=None, mode='reservoir'):
+    def __init__(self, buffer_size, device, n_tasks=None, mode='balanced'):
         assert mode in ('ring', 'reservoir', 'balanced')
         self.mode = mode
         self.buffer_size = buffer_size
@@ -270,7 +270,8 @@ class Buffer:
         """
         idx = torch.argwhere(self.labels == label).flatten()
         if len(idx) == 0:
-            raise ValueError(f'Class label {label} not present in the buffer')
+            print(f'Class label {label} not present in the buffer')
+            return 0
         class_samples = self.examples[idx]
         return class_samples
 
