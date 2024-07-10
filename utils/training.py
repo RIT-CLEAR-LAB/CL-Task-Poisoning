@@ -13,7 +13,7 @@ import torch
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
-from drift_detection import detect_drift, detect_uncertainty_drift
+from drift_detection import detect_uncertainty_drift
 from utils.loggers import *
 from utils.status import ProgressBar
 
@@ -104,14 +104,20 @@ def train(model: ContinualModel, dataset: ContinualDataset,
         dataset_copy = get_dataset(args)
         for t in range(dataset.N_TASKS):
             model.net.train()
-            _, _ = dataset_copy.get_drifted_data_loaders(args)
+            if args.drift_type == -1:
+                _, _ = dataset_copy.get_data_loaders()
+            else:
+                _, _ = dataset_copy.get_drifted_data_loaders(args)
         if model.NAME != 'icarl' and model.NAME != 'pnn':
             random_results_class, random_results_task = evaluate(model, dataset_copy)
 
     print(file=sys.stderr)
     for t in range(dataset.N_TASKS):
         model.net.train()
-        train_loader, _ = dataset.get_drifted_data_loaders(args)
+        if args.drift_type == -1:
+            train_loader, _ = dataset.get_data_loaders()
+        else:
+            train_loader, _ = dataset.get_drifted_data_loaders(args)
         if hasattr(model, 'begin_task'):
             model.begin_task(dataset)
         if t and not args.ignore_other_metrics:
@@ -119,8 +125,8 @@ def train(model: ContinualModel, dataset: ContinualDataset,
             results[t-1] = results[t-1] + accs[0]
             if dataset.SETTING == 'class-il':
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
-        # detect_drift(dataset.drifting_classes, train_loader, model)
-        detect_uncertainty_drift(dataset.drifting_classes, train_loader, model)
+        if args.drift_type != -1:
+            detect_uncertainty_drift(dataset.drifting_classes, train_loader, model)
         scheduler = dataset.get_scheduler(model, args)
         for epoch in range(model.args.n_epochs):
             if args.model == 'joint':
@@ -168,7 +174,7 @@ def train(model: ContinualModel, dataset: ContinualDataset,
 
             wandb.log(d2)
 
-    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-drift-{args.drift_type}-task-accuracies.json", 
+    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-drift-{args.drift_type}-task-accuracies.json", 
               'w') as jsonfile:
         json.dump({'task_accuracies': results}, jsonfile)
 
