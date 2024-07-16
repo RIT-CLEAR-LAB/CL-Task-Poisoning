@@ -1,10 +1,11 @@
 import numpy as np
+import copy
 
 
 class StreamSpecification:
-    def __init__(self, n_tasks: int, n_slots: int, n_classes: int, random_seed: int = None) -> None:
+    def __init__(self, n_tasks: int, n_slots: int, n_classes: int, random_seed: int = None, n_drifts: int = None, sequential_drifts: bool = False) -> None:
         """
-        Represents the class-task layout of the overall task stream.
+        Utility class that represents the class-task layout of the overall task stream.
 
         Args:
         n_tasks - number of tasks in the stream
@@ -12,14 +13,49 @@ class StreamSpecification:
         """
         assert n_tasks >= 2, 'need at least two tasks for continual learning'
         assert n_slots >= 2, 'for classification task you need at least two classes in each task'
+
+        if n_drifts is not None:
+            assert sequential_drifts == False, 'you must use n_drifts or sequential_drifts arguments (cant use them together)'
+        if sequential_drifts:
+            assert n_drifts is None, 'you must use n_drifts or sequential_drifts arguments (cant use them together)'
+
         self.n_tasks = n_tasks
         self.n_slots = n_slots
         self.n_classes = n_classes
         self.random_seed = random_seed
+        self.n_drifts = n_drifts
+        self.sequential_drifts = sequential_drifts
 
-        self.task_classes = self.random_class_asigment()
+        if n_drifts is not None:
+            self.task_classes = self.create_n_drifts()
+        elif sequential_drifts:
+            self.task_classes = self.create_sequential_drifts()
+        else:
+            self.task_classes = self.random_class_asigment()
 
         self.current_task = 0
+
+    def create_n_drifts(self):
+        task_classes = list()
+        return task_classes
+
+    def create_sequential_drifts(self):
+        """each task form 1 to n-1 contains set of new classes and drifted classes from previous task"""
+        task_classes = list()
+
+        classes_per_task = self.n_classes // self.n_tasks
+        last_new_classes = []
+        assert classes_per_task >= 2
+        last_class = 0
+        for t in range(self.n_tasks):
+            new_classes = list(range(last_class, last_class + classes_per_task))
+            classes_to_add = list()
+            classes_to_add.extend(new_classes)
+            classes_to_add.extend(last_new_classes)
+            task_classes.append(sorted(classes_to_add))
+            last_class += classes_per_task
+            last_new_classes = copy.deepcopy(new_classes)
+        return task_classes
 
     def random_class_asigment(self):
         """ Random class assigment to the tasks.
@@ -69,7 +105,7 @@ class StreamSpecification:
 
     @property
     def drifted_classes(self):
-        """return classes for which drift has occured"""
+        """return all classes for which drift has occured so far"""
         seen_classes = set()
         drifted_cl = set()
         for i in range(min(self.current_task+1, self.n_tasks)):
@@ -82,6 +118,7 @@ class StreamSpecification:
 
     @property
     def drifted_classes_last_task(self):
+        """return classes from last task for which dirft has occured"""
         current_classes = self.task_classes[self.current_task]
         current_classes = set(current_classes)
         drifted_classes = set(self.drifted_classes)
@@ -90,8 +127,9 @@ class StreamSpecification:
 
 
 if __name__ == '__main__':
-    s = StreamSpecification(5, 5, 10, 45)
+    s = StreamSpecification(5, 2, 10, 45, sequential_drifts=True)
     for task_classes in s:
         print('task_classes = ', task_classes)
         print('drifted_classes = ', s.drifted_classes)
+        print('drifted_classes_last_task = ', s.drifted_classes_last_task)
         print()
