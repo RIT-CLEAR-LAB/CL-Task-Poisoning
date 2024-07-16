@@ -47,3 +47,23 @@ def test_sequential_drifts_can_iterate():
             assert len(task_classes) == 4
         n_tasks += 1
     assert n_tasks == 5
+
+
+def test_n_drifts_can_iterate():
+    s = StreamSpecification(5, 2, 10, 45, n_drifts=3)
+    it = iter(s)
+    assert next(it) == [0, 1]
+    assert next(it) == [0, 1, 2, 3]
+    assert next(it) == [2, 3, 4, 5]
+    assert next(it) == [4, 5, 6, 7]
+    assert next(it) == [8, 9]
+
+
+def test_n_drifts_can_iterate_ndrifts_1():
+    s = StreamSpecification(5, 2, 10, 45, n_drifts=1)
+    it = iter(s)
+    assert next(it) == [0, 1]
+    assert next(it) == [2, 3]
+    assert next(it) == [0, 1, 2, 3, 4, 5]
+    assert next(it) == [6, 7]
+    assert next(it) == [8, 9]

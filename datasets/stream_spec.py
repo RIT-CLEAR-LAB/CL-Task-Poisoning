@@ -1,5 +1,6 @@
 import numpy as np
 import copy
+import collections
 
 
 class StreamSpecification:
@@ -36,7 +37,32 @@ class StreamSpecification:
         self.current_task = 0
 
     def create_n_drifts(self):
+        assert self.n_drifts < self.n_tasks
+
+        drift_duration = self.n_tasks // (self.n_drifts + 1)
+        drift_indexes = list()
+        for i in range(drift_duration, self.n_tasks, drift_duration):
+            if len(drift_indexes) == self.n_drifts:
+                break
+            drift_indexes.append(i)
+
+        if len(drift_indexes) < self.n_drifts:
+            drift_indexes.append(self.n_tasks-1)
+
+        classes_per_task = self.n_classes // self.n_tasks
+        last_class = 0
+        last_drifted_class = -1
         task_classes = list()
+        for t in range(self.n_tasks):
+            new_classes = list(range(last_class, last_class + classes_per_task))
+            if t in drift_indexes:
+                min_label = min(new_classes)
+                for c in range(last_drifted_class+1, min_label):
+                    new_classes.append(c)
+                last_drifted_class = min_label - 1
+            task_classes.append(sorted(new_classes))
+            last_class += classes_per_task
+
         return task_classes
 
     def create_sequential_drifts(self):
@@ -125,9 +151,17 @@ class StreamSpecification:
         current_drifted = set.intersection(current_classes, drifted_classes)
         return list(current_drifted)
 
+    @property
+    def max_drifts_per_class(self):
+        counter = collections.Counter()
+        for classes in self.task_classes:
+            counter.update(classes)
+        max_occurence = counter.most_common(1)[0]
+        return max_occurence - 1
+
 
 if __name__ == '__main__':
-    s = StreamSpecification(5, 2, 10, 45, sequential_drifts=True)
+    s = StreamSpecification(5, 2, 10, 45, n_drifts=1)
     for task_classes in s:
         print('task_classes = ', task_classes)
         print('drifted_classes = ', s.drifted_classes)
