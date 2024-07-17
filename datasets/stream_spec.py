@@ -4,7 +4,8 @@ import collections
 
 
 class StreamSpecification:
-    def __init__(self, n_tasks: int, n_slots: int, n_classes: int, random_seed: int = None, n_drifts: int = None, sequential_drifts: bool = False) -> None:
+    def __init__(self, n_tasks: int, n_classes: int, random_seed: int = None,
+                 n_slots: int = None, n_drifts: int = None, sequential_drifts: bool = False) -> None:
         """
         Utility class that represents the class-task layout of the overall task stream.
 

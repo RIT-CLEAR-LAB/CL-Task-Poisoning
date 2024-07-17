@@ -3,7 +3,7 @@ from datasets.stream_spec import *
 
 
 def test_can_iterate():
-    s = StreamSpecification(5, 2, 10, 45)
+    s = StreamSpecification(5, 10, 45, 2)
     n_tasks = 0
     for task_classes in s:
         assert len(task_classes) == 2
@@ -12,7 +12,7 @@ def test_can_iterate():
 
 
 def test_drifted_classes_are_returned():
-    s = StreamSpecification(5, 5, 10, 45)
+    s = StreamSpecification(5, 10, 45, 5)
     for i, _ in enumerate(s):
         if i > 0:
             assert len(s.drifted_classes) > 0
@@ -22,7 +22,7 @@ def test_drifted_classes_are_returned():
 
 
 def test_drifted_classes_last_task():
-    s = StreamSpecification(5, 5, 10, 45)
+    s = StreamSpecification(5, 10, 45, 5)
     last_class = 0
     for tk in s:
         for c in s.drifted_classes_last_task:
@@ -34,11 +34,11 @@ def test_drifted_classes_last_task():
 
 def test_cant_use_exclusive_args():
     with pytest.raises(AssertionError):
-        s = StreamSpecification(5, 5, 10, 45, n_drifts=10, sequential_drifts=True)
+        s = StreamSpecification(5, 10, 45, 5, n_drifts=10, sequential_drifts=True)
 
 
 def test_sequential_drifts_can_iterate():
-    s = StreamSpecification(5, 2, 10, 45, sequential_drifts=True)
+    s = StreamSpecification(5, 10, 45, 2, sequential_drifts=True)
     n_tasks = 0
     for i, task_classes in enumerate(s):
         if i == 0:
@@ -50,7 +50,7 @@ def test_sequential_drifts_can_iterate():
 
 
 def test_n_drifts_can_iterate():
-    s = StreamSpecification(5, 2, 10, 45, n_drifts=3)
+    s = StreamSpecification(5, 10, 45, 2, n_drifts=3)
     it = iter(s)
     assert next(it) == [0, 1]
     assert next(it) == [0, 1, 2, 3]
@@ -60,7 +60,7 @@ def test_n_drifts_can_iterate():
 
 
 def test_n_drifts_can_iterate_ndrifts_1():
-    s = StreamSpecification(5, 2, 10, 45, n_drifts=1)
+    s = StreamSpecification(5, 10, 45, 2, n_drifts=1)
     it = iter(s)
     assert next(it) == [0, 1]
     assert next(it) == [2, 3]
