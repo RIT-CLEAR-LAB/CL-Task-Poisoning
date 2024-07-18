@@ -107,7 +107,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             if args.concept_drift == -1:
                 _, _ = dataset_copy.get_data_loaders()
             else:
-                _, _ = dataset_copy.get_drifted_data_loaders(args)
+                _, _ = dataset_copy.get_drifted_data_loaders()
         if model.NAME != 'icarl' and model.NAME != 'pnn':
             random_results_class, random_results_task = evaluate(model, dataset_copy)
 
@@ -117,7 +117,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         if args.concept_drift == -1:
             train_loader, _ = dataset.get_data_loaders()
         else:
-            train_loader, _ = dataset.get_drifted_data_loaders(args)
+            train_loader, _ = dataset.get_drifted_data_loaders()
         if hasattr(model, 'begin_task'):
             model.begin_task(dataset)
         if t and not args.ignore_other_metrics:

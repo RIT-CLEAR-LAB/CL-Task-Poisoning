@@ -76,7 +76,7 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
         self.classes = classes_list
 
     def apply_drift(self, classes: list):
-        if len(set.union(self.classes, classes)) == 0:
+        if len(set(self.classes).union(classes)) == 0:
             return
         self.drifted_classes.extend(classes)
 
@@ -127,7 +127,7 @@ class TestCIFAR10(MammothDataset, CIFAR10):
         self.classes = classes_list
 
     def apply_drift(self, classes: list):
-        if len(set.union(self.classes, classes)) == 0:
+        if len(set(self.classes).union(classes)) == 0:
             return
         self.drifted_classes.extend(classes)
 

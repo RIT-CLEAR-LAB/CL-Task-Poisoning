@@ -81,11 +81,11 @@ class ContinualDataset:
         if len(drifted_classes) > 0:
             drifting_train_dataset = self.get_dataset(train=True)
             drifting_train_dataset.select_classes(drifted_classes)
-            drifting_train_dataset = self.apply_drift(drifting_train_dataset, drifted_classes, train=True)
+            drifting_train_dataset.apply_drift(drifted_classes)
 
             drifting_test_dataset = self.get_dataset(train=False)
             drifting_test_dataset.select_classes(drifted_classes)
-            drifting_test_dataset = self.apply_drift(drifting_test_dataset, drifted_classes, train=False)
+            drifting_test_dataset.apply_drift(drifted_classes)
 
             train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
         train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
@@ -94,8 +94,8 @@ class ContinualDataset:
         if len(drifted_classes) > 0:
             for t in range(len(self.test_loaders)):
                 prev_test_data = self.test_loaders[t].dataset
-                prev_test_data = self.apply_drift(prev_test_data, drifted_classes, train=False)
-                self.test_loaders[t].dataset = prev_test_data
+                prev_test_data.apply_drift(drifted_classes)
+                self.test_loaders[t] = DataLoader(prev_test_data, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
 
             self.drifting_classes = drifted_classes
 
@@ -108,14 +108,6 @@ class ContinualDataset:
 
     def get_dataset(self, train=True) -> MammothDataset:
         """returns native version of represented dataset"""
-        raise NotImplementedError
-
-    def select_classes(self, dataset, classes_list):
-        """gets datasets and returns the same dataset, but with only selected classes"""
-        raise NotImplementedError
-
-    def apply_drift(self, dataset, classes: list, train=True):
-        """gets dataset, applied drift to selected classes and returns the dataset with drift applied to it"""
         raise NotImplementedError
 
     @staticmethod
