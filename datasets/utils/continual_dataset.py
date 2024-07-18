@@ -10,6 +10,11 @@ import numpy as np
 import torch.nn as nn
 import torch.optim
 from torch.utils.data import DataLoader, Dataset
+import torchvision.transforms as transforms
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
+from datasets.stream_spec import StreamSpecification
+from datasets.mammoth_dataset import MammothDataset
+
 
 class ContinualDataset:
     """
@@ -35,12 +40,82 @@ class ContinualDataset:
             raise NotImplementedError(
                 'The dataset must be initialized with all the required fields.')
 
+        n_tasks = self.N_TASKS
+        n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
+        self.stream_spec = StreamSpecification(n_tasks, n_classes, random_seed=args.seed,
+                                               n_slots=args.n_slots, n_drifts=args.n_drifts, sequential_drifts=args.sequential_drifts)
+        self.stream_spec_it = iter(self.stream_spec)
+
     def get_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
         """
         Creates and returns the training and test loaders for the current task.
         The current training loader and all test loaders are stored in self.
         :return: the current training and test loaders
         """
+        new_classes = list(range(self.i, self.i + self.N_CLASSES_PER_TASK))
+        train_dataset = self.get_dataset(train=True)
+        train_dataset.select_classes(new_classes)
+        test_dataset = self.get_dataset(train=False)
+        test_dataset.select_classes(new_classes)
+
+        train_loader = DataLoader(train_dataset,
+                                  batch_size=self.args.batch_size, shuffle=True, num_workers=4)
+        test_loader = DataLoader(test_dataset,
+                                 batch_size=self.args.batch_size, shuffle=False, num_workers=4)
+        self.train_loader = train_loader
+        self.test_loaders.append(test_loader)
+
+        self.i += self.N_CLASSES_PER_TASK
+        return train_loader, test_loader
+
+    def get_drifted_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
+        task_spec: list[int] = next(self.stream_spec_it)
+
+        current_classes = self.stream_spec.new_classes_last_task
+        train_dataset = self.get_dataset(train=True)
+        train_dataset.select_classes(current_classes)
+        test_dataset = self.get_dataset(train=False)
+        test_dataset.select_classes(current_classes)
+
+        drifted_classes = self.stream_spec.drifted_classes_last_task
+        if len(drifted_classes) > 0:
+            drifting_train_dataset = self.get_dataset(train=True)
+            drifting_train_dataset.select_classes(drifted_classes)
+            drifting_train_dataset = self.apply_drift(drifting_train_dataset, drifted_classes, train=True)
+
+            drifting_test_dataset = self.get_dataset(train=False)
+            drifting_test_dataset.select_classes(drifted_classes)
+            drifting_test_dataset = self.apply_drift(drifting_test_dataset, drifted_classes, train=False)
+
+            train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
+        train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
+        self.train_loader = train_loader
+
+        if len(drifted_classes) > 0:
+            for t in range(len(self.test_loaders)):
+                prev_test_data = self.test_loaders[t].dataset
+                prev_test_data = self.apply_drift(prev_test_data, drifted_classes, train=False)
+                self.test_loaders[t].dataset = prev_test_data
+
+            self.drifting_classes = drifted_classes
+
+        test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
+
+        # current test loader contains undrifted images
+        self.test_loaders.append(test_loader)
+
+        return train_loader, test_loader
+
+    def get_dataset(self, train=True) -> MammothDataset:
+        """returns native version of represented dataset"""
+        raise NotImplementedError
+
+    def select_classes(self, dataset, classes_list):
+        """gets datasets and returns the same dataset, but with only selected classes"""
+        raise NotImplementedError
+
+    def apply_drift(self, dataset, classes: list, train=True):
+        """gets dataset, applied drift to selected classes and returns the dataset with drift applied to it"""
         raise NotImplementedError
 
     @staticmethod
@@ -96,110 +171,3 @@ class ContinualDataset:
     @staticmethod
     def get_minibatch_size():
         raise NotImplementedError
-
-def store_masked_loaders(train_dataset: Dataset, test_dataset: Dataset,
-                         setting: ContinualDataset) -> Tuple[DataLoader, DataLoader]:
-    """
-    Divides the dataset into tasks.
-    :param train_dataset: train dataset
-    :param test_dataset: test dataset
-    :param setting: continual learning setting
-    :return: train and test loaders
-    """
-    train_mask = np.logical_and(np.array(train_dataset.targets) >= setting.i,
-                                np.array(train_dataset.targets) < setting.i + setting.N_CLASSES_PER_TASK)
-    test_mask = np.logical_and(np.array(test_dataset.targets) >= setting.i,
-                               np.array(test_dataset.targets) < setting.i + setting.N_CLASSES_PER_TASK)
-
-    train_dataset.data = train_dataset.data[train_mask]
-    test_dataset.data = test_dataset.data[test_mask]
-
-    train_dataset.targets = np.array(train_dataset.targets)[train_mask]
-    test_dataset.targets = np.array(test_dataset.targets)[test_mask]
-
-    train_loader = DataLoader(train_dataset,
-                              batch_size=setting.args.batch_size, shuffle=True, num_workers=4)
-    test_loader = DataLoader(test_dataset,
-                             batch_size=setting.args.batch_size, shuffle=False, num_workers=4)
-    setting.test_loaders.append(test_loader)
-    setting.train_loader = train_loader
-
-    setting.i += setting.N_CLASSES_PER_TASK
-    return train_loader, test_loader
-
-def store_drifted_masked_loaders(train_dataset: Dataset, test_dataset: Dataset, drifting_train_dataset: Dataset,
-                         drifting_test_dataset: Dataset, setting: ContinualDataset) -> Tuple[DataLoader, DataLoader]:
-
-    # selecting the previous training classes to apply drift
-    train_drift_mask = np.logical_and(np.array(drifting_train_dataset.targets) >= setting.i - setting.N_CLASSES_PER_TASK,
-                                      np.array(drifting_train_dataset.targets) < setting.i)
-
-    train_mask = np.logical_and(np.array(train_dataset.targets) >= setting.i,
-                                np.array(train_dataset.targets) < setting.i + setting.N_CLASSES_PER_TASK)
-
-    # selecting the previous test class to apply drift
-    test_drift_mask = np.logical_and(np.array(drifting_test_dataset.targets) >= setting.i - setting.N_CLASSES_PER_TASK,
-                                     np.array(drifting_test_dataset.targets) < setting.i)
-
-    test_mask = np.logical_and(np.array(test_dataset.targets) >= setting.i,
-                               np.array(test_dataset.targets) < setting.i + setting.N_CLASSES_PER_TASK)
-
-    # selecting the unseen second half of the previous class to apply drift
-    drifting_train_dataset.data = drifting_train_dataset.data[train_drift_mask]
-    drifting_train_dataset.data = drifting_train_dataset.data[len(drifting_train_dataset.data)//2:]
-    drifting_train_dataset.targets = np.array(drifting_train_dataset.targets)[train_drift_mask]
-    drifting_train_dataset.targets = drifting_train_dataset.targets[len(drifting_train_dataset.targets)//2:]
-
-    # selecting half of the task classes for training and leaving the rest for drift in the next iteration
-    train_dataset.data = train_dataset.data[train_mask]
-    train_dataset.data = train_dataset.data[: len(train_dataset.data)//2]
-    train_dataset.targets = np.array(train_dataset.targets)[train_mask]
-    train_dataset.targets = train_dataset.targets[: len(train_dataset.targets)//2]
-
-    drifting_test_dataset.data = drifting_test_dataset.data[test_drift_mask]
-    drifting_test_dataset.targets = np.array(drifting_test_dataset.targets)[test_drift_mask]
-
-    test_dataset.data = test_dataset.data[test_mask]
-    test_dataset.targets = np.array(test_dataset.targets)[test_mask]
-
-    combined_train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
-    train_loader = DataLoader(combined_train_dataset, batch_size=setting.args.batch_size, shuffle=True, num_workers=4)
-    setting.train_loader = train_loader
-
-    if setting.i > 0:
-
-        drifted_test_loader = DataLoader(drifting_test_dataset, batch_size=setting.args.batch_size, shuffle=False, num_workers=4)
-
-        assert len(setting.test_loaders) > 0
-        setting.test_loaders[len(setting.test_loaders) - 1] = drifted_test_loader   # replacing previous testloader with drifted images
-
-        setting.drifting_classes = np.arange(setting.i - setting.N_CLASSES_PER_TASK, setting.i)
-
-    test_loader = DataLoader(test_dataset, batch_size=setting.args.batch_size, shuffle=False, num_workers=4)
-
-    # current test loader contains undrifted images
-    setting.test_loaders.append(test_loader)
-
-    setting.i += setting.N_CLASSES_PER_TASK
-    return train_loader, test_loader
-
-
-def get_previous_train_loader(train_dataset: Dataset, batch_size: int,
-                              setting: ContinualDataset) -> DataLoader:
-    """
-    Creates a dataloader for the previous task.
-    :param train_dataset: the entire training set
-    :param batch_size: the desired batch size
-    :param setting: the continual dataset at hand
-    :return: a dataloader
-    """
-    train_mask = np.logical_and(np.array(train_dataset.targets) >=
-                                setting.i -
-                                setting.N_CLASSES_PER_TASK, np.array(
-                                    train_dataset.targets)
-                                < setting.i - setting.N_CLASSES_PER_TASK + setting.N_CLASSES_PER_TASK)
-
-    train_dataset.data = train_dataset.data[train_mask]
-    train_dataset.targets = np.array(train_dataset.targets)[train_mask]
-
-    return DataLoader(train_dataset, batch_size=batch_size, shuffle=True)

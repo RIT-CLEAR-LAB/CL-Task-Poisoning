@@ -15,8 +15,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 
 from datasets.transforms.denormalization import DeNormalize
-from datasets.utils.continual_dataset import (ContinualDataset,
-                                              store_masked_loaders)
+from datasets.utils.continual_dataset import ContinualDataset
 from datasets.utils.validation import get_train_val
 from utils.conf import base_path_dataset as base_path
 

@@ -13,7 +13,7 @@ from PIL import Image
 from torchvision.datasets import CIFAR100
 
 from datasets.transforms.denormalization import DeNormalize
-from datasets.utils.continual_dataset import (ContinualDataset, store_masked_loaders, store_drifted_masked_loaders)
+from datasets.utils.continual_dataset import ContinualDataset
 from datasets.utils.validation import get_train_val
 from utils.conf import base_path_dataset as base_path
 from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
@@ -21,14 +21,17 @@ from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, Shot
 
 class TCIFAR100(CIFAR100):
     """Workaround to avoid printing the already downloaded messages."""
+
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False) -> None:
         self.root = root
         super(TCIFAR100, self).__init__(root, train, transform, target_transform, download=not self._check_integrity())
+
 
 class MyCIFAR100(CIFAR100):
     """
     Overrides the CIFAR100 dataset to change the getitem function.
     """
+
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False) -> None:
         self.not_aug_transform = transforms.Compose([transforms.ToTensor()])
         self.root = root
@@ -59,6 +62,7 @@ class MyCIFAR100(CIFAR100):
 
         return img, target, not_aug_img
 
+
 class DriftingCIFAR100(CIFAR100):
 
     def __init__(self, root, train=True, transform=None, target_transform=None, download=False) -> None:
@@ -85,6 +89,7 @@ class DriftingCIFAR100(CIFAR100):
 
         return img, target, not_aug_img
 
+
 class SequentialCIFAR100(ContinualDataset):
 
     NAME = 'seq-cifar100'
@@ -95,10 +100,12 @@ class SequentialCIFAR100(ContinualDataset):
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        ])
+        # transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+    ])
     TEST_TRANSFORM = transforms.Compose([
         transforms.ToTensor(),
-        ])
+        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+    ])
 
     def get_examples_number(self):
         train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True)
@@ -124,8 +131,8 @@ class SequentialCIFAR100(ContinualDataset):
             DefocusBlur(DRIFT_SEVERITY),
             GaussianNoise(DRIFT_SEVERITY),
             ShotNoise(DRIFT_SEVERITY),
-            SpeckleNoise(DRIFT_SEVERITY),
-            ]
+            SpeckleNoise(DRIFT_SEVERITY)
+        ]
 
         TRANSFORM = transforms.Compose([
             DRIFTS[args.train_drift],
@@ -138,8 +145,8 @@ class SequentialCIFAR100(ContinualDataset):
         TEST_TRANSFORM = transforms.Compose([
             DRIFTS[args.train_drift],
             transforms.ToPILImage(),
-            transforms.ToTensor(), 
-            ])
+            transforms.ToTensor(),
+        ])
 
         train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=TRANSFORM)
         test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_TRANSFORM)
@@ -151,20 +158,22 @@ class SequentialCIFAR100(ContinualDataset):
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            ])
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        ])
 
         # applying drift to test data
         TEST_DRIFT_TRANSFORM = transforms.Compose([
             DRIFTS[args.concept_drift],
             transforms.ToPILImage(),
             transforms.ToTensor(),
-            ])
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        ])
 
         drifting_train_dataset = DriftingCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=DRIFT_TRANSFORM)
         drifting_test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_DRIFT_TRANSFORM)
 
-        train, test = store_drifted_masked_loaders(train_dataset=train_dataset, test_dataset=test_dataset, 
-                                                   drifting_train_dataset=drifting_train_dataset, 
+        train, test = store_drifted_masked_loaders(train_dataset=train_dataset, test_dataset=test_dataset,
+                                                   drifting_train_dataset=drifting_train_dataset,
                                                    drifting_test_dataset=drifting_test_dataset, setting=self)
 
         return train, test
@@ -213,4 +222,3 @@ class SequentialCIFAR100(ContinualDataset):
         model.opt = torch.optim.SGD(model.net.parameters(), lr=args.lr, weight_decay=args.optim_wd, momentum=args.optim_mom)
         scheduler = torch.optim.lr_scheduler.MultiStepLR(model.opt, [35, 45], gamma=0.1, verbose=False)
         return scheduler
-

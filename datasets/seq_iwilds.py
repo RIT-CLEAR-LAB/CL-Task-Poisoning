@@ -11,7 +11,7 @@ import torchvision.transforms as transforms
 from wilds import get_dataset
 from wilds.common.data_loaders import get_train_loader
 from datasets.transforms.denormalization import DeNormalize
-from datasets.utils.continual_dataset import (ContinualDataset, store_masked_loaders, store_drifted_masked_loaders)
+from datasets.utils.continual_dataset import ContinualDataset
 from torch.utils.data import DataLoader, Dataset
 from torchvision.models import resnet18, ResNet18_Weights
 

@@ -1,11 +1,12 @@
 import numpy as np
 import copy
 import collections
+from typing import Union
 
 
 class StreamSpecification:
     def __init__(self, n_tasks: int, n_classes: int, random_seed: int = None,
-                 n_slots: int = None, n_drifts: int = None, sequential_drifts: bool = False) -> None:
+                 n_slots: Union[int, None] = None, n_drifts: Union[int, None] = None, sequential_drifts: bool = False) -> None:
         """
         Utility class that represents the class-task layout of the overall task stream.
 
@@ -14,12 +15,13 @@ class StreamSpecification:
         n_slots - number of classes per task
         """
         assert n_tasks >= 2, 'need at least two tasks for continual learning'
-        assert n_slots >= 2, 'for classification task you need at least two classes in each task'
 
+        if n_slots is not None:
+            assert n_drifts == None and sequential_drifts == False, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
         if n_drifts is not None:
-            assert sequential_drifts == False, 'you must use n_drifts or sequential_drifts arguments (cant use them together)'
+            assert n_slots == None and sequential_drifts == False, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
         if sequential_drifts:
-            assert n_drifts is None, 'you must use n_drifts or sequential_drifts arguments (cant use them together)'
+            assert n_slots == None and n_drifts is None, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
 
         self.n_tasks = n_tasks
         self.n_slots = n_slots
@@ -150,6 +152,15 @@ class StreamSpecification:
         current_classes = set(current_classes)
         drifted_classes = set(self.drifted_classes)
         current_drifted = set.intersection(current_classes, drifted_classes)
+        return list(current_drifted)
+
+    @property
+    def new_classes_last_task(self):
+        """return classes from current task"""
+        current_classes = self.task_classes[self.current_task]
+        current_classes = set(current_classes)
+        drifted_classes = set(self.drifted_classes)
+        current_drifted = current_classes - drifted_classes
         return list(current_drifted)
 
     @property
