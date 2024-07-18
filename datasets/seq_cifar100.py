@@ -16,7 +16,7 @@ from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import (ContinualDataset, store_masked_loaders, store_drifted_masked_loaders)
 from datasets.utils.validation import get_train_val
 from utils.conf import base_path_dataset as base_path
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
 
 
 class TCIFAR100(CIFAR100):
@@ -121,34 +121,45 @@ class SequentialCIFAR100(ContinualDataset):
 
     def get_drifted_data_loaders(self, args):
 
-        train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=self.TRANSFORM)
-        test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=self.TEST_TRANSFORM)
-
         DRIFT_SEVERITY = args.drift_severity
         DRIFTS = [
             DefocusBlur(DRIFT_SEVERITY),
             GaussianNoise(DRIFT_SEVERITY),
-            JpegCompression(DRIFT_SEVERITY),
             ShotNoise(DRIFT_SEVERITY),
-            SpeckleNoise(DRIFT_SEVERITY)
+            SpeckleNoise(DRIFT_SEVERITY),
             ]
+
+        TRANSFORM = transforms.Compose([
+            DRIFTS[args.train_drift],
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+        ])
+
+        TEST_TRANSFORM = transforms.Compose([
+            DRIFTS[args.train_drift],
+            transforms.ToPILImage(),
+            transforms.ToTensor(), 
+            ])
+
+        train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=TRANSFORM)
+        test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_TRANSFORM)
 
         # applying drift to training data
         DRIFT_TRANSFORM = transforms.Compose([
-            DRIFTS[args.drift_type],
+            DRIFTS[args.concept_drift],
             transforms.ToPILImage(),
-            # transforms.RandomCrop(32, padding=4),
+            transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
             ])
 
         # applying drift to test data
         TEST_DRIFT_TRANSFORM = transforms.Compose([
-            DRIFTS[args.drift_type],
+            DRIFTS[args.concept_drift],
             transforms.ToPILImage(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
             ])
 
         drifting_train_dataset = DriftingCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=DRIFT_TRANSFORM)

@@ -1,7 +1,5 @@
 import numpy as np
 import cv2
-from PIL import Image
-from io import BytesIO
 
 class DefocusBlur():
   def __init__(self, severity=1):
@@ -51,23 +49,6 @@ class GaussianNoise():
 
     x = np.array(x) / 255.
     return np.clip(x + np.random.normal(size=x.shape, scale=c), 0, 1)
-
-class JpegCompression():
-  def __init__(self, severity=1):
-    self.severity = severity
-
-  def __call__(self, x):
-    return self.jpeg_compression(x, self.severity)
-
-  @staticmethod
-  def jpeg_compression(x, severity):
-    c = [80, 65, 58, 50, 40][severity - 1]
-
-    output = BytesIO()
-    x.save(output, 'JPEG', quality=c)
-    x = Image.open(output)
-
-    return np.array(x)
 
 class ShotNoise():
     def __init__(self, severity=1):

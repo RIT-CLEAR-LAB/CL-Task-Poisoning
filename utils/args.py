@@ -36,11 +36,14 @@ def add_experiment_args(parser: ArgumentParser) -> None:
 
     parser.add_argument('--distributed', type=str, default='no', choices=['no', 'dp', 'ddp'])
 
-    parser.add_argument('--drift_type', default=-1, choices=[0, 1, 2, 3, 4], type=int, 
-                        help='Choose the drift transform to be applied: \
-                        Defocus Blur-> 0, Gaussian Noise-> 1, Jpeg Compression-> 2, Shot Noise-> 3, Speckle Noise-> 4')
-    parser.add_argument('--drift_severity', default=1, choices=[1, 2, 3, 4, 5], type=int, 
-                        help='Choose the intensity of the drift transform:')
+    parser.add_argument('--train_drift', default=-1, choices=[0, 1, 2, 3], type=int, 
+                        help='Choose the drift transform to be applied to training data: \
+                        Defocus Blur-> 0, Gaussian Noise-> 1, Shot Noise-> 2, Speckle Noise-> 3')
+    parser.add_argument('--concept_drift', default=-1, choices=[0, 1, 2, 3], type=int, 
+                        help='Choose the drift transform to be applied to drifting data: \
+                        Defocus Blur-> 0, Gaussian Noise-> 1, Shot Noise-> 2, Speckle Noise-> 3')
+    parser.add_argument('--drift_severity', default=5, choices=[1, 2, 3, 4, 5], type=int, 
+                        help='Choose the intensity of the drift transforms:')
 
 def add_management_args(parser: ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=None,
