@@ -92,14 +92,12 @@ class SequentialCIFAR100(ContinualDataset):
     N_CLASSES_PER_TASK = 5
     N_TASKS = 20
     TRANSFORM = transforms.Compose([
-        # transforms.RandomCrop(32, padding=4),
+        transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        # transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
         ])
     TEST_TRANSFORM = transforms.Compose([
-        transforms.ToTensor(), 
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        transforms.ToTensor(),
         ])
 
     def get_examples_number(self):

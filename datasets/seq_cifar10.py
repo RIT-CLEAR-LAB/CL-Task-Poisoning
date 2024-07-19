@@ -95,14 +95,12 @@ class SequentialCIFAR10(ContinualDataset):
     N_CLASSES_PER_TASK = 2
     N_TASKS = 5
     TRANSFORM = transforms.Compose([
-        # transforms.RandomCrop(32, padding=4),
+        transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
     TEST_TRANSFORM = transforms.Compose([
         transforms.ToTensor(), 
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
 
     def get_data_loaders(self):
@@ -120,33 +118,45 @@ class SequentialCIFAR10(ContinualDataset):
 
     def get_drifted_data_loaders(self, args):
 
-        train_dataset = MyCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=self.TRANSFORM)
-        test_dataset = TCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=self.TEST_TRANSFORM)
-
         DRIFT_SEVERITY = args.drift_severity
         DRIFTS = [
             DefocusBlur(DRIFT_SEVERITY),
             GaussianNoise(DRIFT_SEVERITY),
             ShotNoise(DRIFT_SEVERITY),
-            SpeckleNoise(DRIFT_SEVERITY)
+            SpeckleNoise(DRIFT_SEVERITY),
             ]
+
+        TRANSFORM = transforms.Compose([
+            DRIFTS[args.train_drift],
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+        ])
+
+        TEST_TRANSFORM = transforms.Compose([
+            DRIFTS[args.train_drift],
+            transforms.ToPILImage(),
+            transforms.ToTensor(), 
+            ])
+
+        train_dataset = MyCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=TRANSFORM)
+        test_dataset = TCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_TRANSFORM)
 
         # applying drift to training data
         DRIFT_TRANSFORM = transforms.Compose([
-            DRIFTS[args.drift_type],
+            DRIFTS[args.concept_drift],
             transforms.ToPILImage(),
-            # transforms.RandomCrop(32, padding=4),
+            transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
             ])
 
         # applying drift to test data
         TEST_DRIFT_TRANSFORM = transforms.Compose([
-            DRIFTS[args.drift_type],
+            DRIFTS[args.concept_drift],
             transforms.ToPILImage(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
             ])
 
         drifting_train_dataset = DriftingCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=DRIFT_TRANSFORM)
