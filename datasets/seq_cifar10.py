@@ -127,7 +127,6 @@ class SequentialCIFAR10(ContinualDataset):
         DRIFTS = [
             DefocusBlur(DRIFT_SEVERITY),
             GaussianNoise(DRIFT_SEVERITY),
-            JpegCompression(DRIFT_SEVERITY),
             ShotNoise(DRIFT_SEVERITY),
             SpeckleNoise(DRIFT_SEVERITY)
             ]
