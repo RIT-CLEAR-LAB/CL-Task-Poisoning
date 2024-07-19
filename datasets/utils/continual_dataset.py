@@ -10,9 +10,6 @@ import numpy as np
 import torch.nn as nn
 import torch.optim
 from torch.utils.data import DataLoader, Dataset
-import torchvision.transforms as transforms
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
-
 
 class ContinualDataset:
     """
