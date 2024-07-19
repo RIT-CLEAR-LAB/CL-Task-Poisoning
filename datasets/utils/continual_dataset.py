@@ -40,11 +40,12 @@ class ContinualDataset:
             raise NotImplementedError(
                 'The dataset must be initialized with all the required fields.')
 
-        n_tasks = self.N_TASKS
-        n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
-        self.stream_spec = StreamSpecification(n_tasks, n_classes, random_seed=args.seed,
-                                               n_slots=args.n_slots, n_drifts=args.n_drifts, sequential_drifts=args.sequential_drifts)
-        self.stream_spec_it = iter(self.stream_spec)
+        if args.drift_type != -1:
+            n_tasks = self.N_TASKS
+            n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
+            self.stream_spec = StreamSpecification(n_tasks, n_classes, random_seed=args.seed,
+                                                   n_slots=args.n_slots, n_drifts=args.n_drifts, sequential_drifts=args.sequential_drifts)
+            self.stream_spec_it = iter(self.stream_spec)
 
     def get_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
         """

@@ -53,7 +53,7 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
 
         if target in self.drifted_classes:
             img = self.drift_transform(img)
-            not_aug_img = self.drift_transform(img)
+            not_aug_img = self.drift_transform(original_img)
         else:
             img = self.transform(img)
             not_aug_img = self.not_aug_transform(original_img)

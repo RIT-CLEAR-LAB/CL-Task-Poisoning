@@ -15,6 +15,7 @@ class StreamSpecification:
         n_slots - number of classes per task
         """
         assert n_tasks >= 2, 'need at least two tasks for continual learning'
+        assert n_slots is not None or n_drifts is not None or sequential_drifts, 'must specify drift type'
 
         if n_slots is not None:
             assert n_drifts == None and sequential_drifts == False, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
@@ -51,6 +52,7 @@ class StreamSpecification:
 
         if len(drift_indexes) < self.n_drifts:
             drift_indexes.append(self.n_tasks-1)
+        print('Creating drifts at tasks: ', drift_indexes)
 
         classes_per_task = self.n_classes // self.n_tasks
         last_class = 0
