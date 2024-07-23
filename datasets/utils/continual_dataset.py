@@ -89,13 +89,18 @@ class ContinualDataset:
             drifting_test_dataset.apply_drift(drifted_classes)
 
             train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
+            test_dataset = torch.utils.data.ConcatDataset([drifting_test_dataset, test_dataset])
         train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
         self.train_loader = train_loader
 
         if len(drifted_classes) > 0:
             for t in range(len(self.test_loaders)):
                 prev_test_data = self.test_loaders[t].dataset
-                prev_test_data.apply_drift(drifted_classes)
+                if type(prev_test_data) == torch.utils.data.ConcatDataset:
+                    for prev_data in prev_test_data.datasets:
+                        prev_data.apply_drift(drifted_classes)
+                else:
+                    prev_test_data.apply_drift(drifted_classes)
                 self.test_loaders[t] = DataLoader(prev_test_data, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
 
             self.drifting_classes = drifted_classes
