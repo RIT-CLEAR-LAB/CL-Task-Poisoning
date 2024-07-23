@@ -4,12 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 from datasets.mammoth_dataset import MammothDataset
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
-from datasets.utils.continual_dataset import ContinualDataset
-import copy
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
-from datasets.utils.validation import get_train_val
-from datasets.utils.continual_dataset import (ContinualDataset, store_masked_loaders, store_drifted_masked_loaders)
 from typing import Tuple
 
 import torch.nn.functional as F
@@ -20,7 +14,7 @@ from backbone.ResNet18 import resnet18
 from PIL import Image
 from torchvision.datasets import CIFAR10
 
-from datasets.seq_tinyimagenet import base_path
+from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
 from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
@@ -182,7 +176,7 @@ class SequentialCIFAR10(ContinualDataset):
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
             ])
-            return TrainCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=self.TRANSFORM,
+            return TrainCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=TRANSFORM,
                                 not_aug_transform=transforms.Compose([transforms.ToTensor()]), drift_transform=DRIFT_TRANSFORM)
         else:
             DRIFT_TRANSFORM = transforms.Compose([
@@ -190,7 +184,7 @@ class SequentialCIFAR10(ContinualDataset):
                 transforms.ToPILImage(),
                 transforms.ToTensor(),
             ])
-            return TestCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=self.TEST_TRANSFORM,
+            return TestCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_TRANSFORM,
                                drift_transform=DRIFT_TRANSFORM)
 
     @ staticmethod

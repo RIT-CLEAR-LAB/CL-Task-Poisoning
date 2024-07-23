@@ -8,6 +8,7 @@ from datasets import ContinualDataset, get_dataset  # nopep8
 
 class args:
     dataset = 'seq-cifar10'
+    train_drift = 0
     concept_drift = 1
     n_slots = 4
     seed = 42
