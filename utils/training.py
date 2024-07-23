@@ -174,7 +174,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
             wandb.log(d2)
 
-    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-drift-{args.drift_type}-task-accuracies.json",
+    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-drift-{args.concept_drift}-task-accuracies.json",
               'w') as jsonfile:
         json.dump({'task_accuracies': results}, jsonfile)
 

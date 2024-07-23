@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 from datasets.mammoth_dataset import MammothDataset
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
 from datasets.utils.continual_dataset import ContinualDataset
 import copy
 from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
@@ -23,7 +23,7 @@ from torchvision.datasets import CIFAR10
 from datasets.seq_tinyimagenet import base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -150,16 +150,6 @@ class SequentialCIFAR10(ContinualDataset):
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 2
     N_TASKS = 5
-    TRANSFORM = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
-    ])
-    TEST_TRANSFORM = transforms.Compose([
-        transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
-    ])
 
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
@@ -170,23 +160,35 @@ class SequentialCIFAR10(ContinualDataset):
             ShotNoise(DRIFT_SEVERITY),
             SpeckleNoise(DRIFT_SEVERITY)
         ]
+        TRANSFORM = transforms.Compose([
+            DRIFTS[self.args.train_drift],
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        ])
+        TEST_TRANSFORM = transforms.Compose([
+            DRIFTS[self.args.train_drift],
+            transforms.ToPILImage(),
+            transforms.ToTensor(),
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        ])
         if train:
             DRIFT_TRANSFORM = transforms.Compose([
-                DRIFTS[self.args.drift_type],
+                DRIFTS[self.args.concept_drift],
                 transforms.ToPILImage(),
-                # transforms.RandomCrop(32, padding=4),
+                transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
             ])
             return TrainCIFAR10(base_path() + 'CIFAR10', train=True, download=True, transform=self.TRANSFORM,
                                 not_aug_transform=transforms.Compose([transforms.ToTensor()]), drift_transform=DRIFT_TRANSFORM)
         else:
             DRIFT_TRANSFORM = transforms.Compose([
-                DRIFTS[self.args.drift_type],
+                DRIFTS[self.args.concept_drift],
                 transforms.ToPILImage(),
                 transforms.ToTensor(),
-                # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
             ])
             return TestCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=self.TEST_TRANSFORM,
                                drift_transform=DRIFT_TRANSFORM)

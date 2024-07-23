@@ -55,24 +55,6 @@ class GaussianNoise():
         return x
 
 
-class JpegCompression():
-    def __init__(self, severity=1):
-        self.severity = severity
-
-    def __call__(self, x):
-        return self.jpeg_compression(x, self.severity)
-
-    @staticmethod
-    def jpeg_compression(x, severity):
-        c = [80, 65, 58, 50, 40][severity - 1]
-
-        output = BytesIO()
-        x.save(output, 'JPEG', quality=c)
-        x = Image.open(output)
-
-        return np.array(x).astype(np.uint8)
-
-
 class ShotNoise():
     def __init__(self, severity=1):
         self.severity = severity

@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim
 from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, JpegCompression, ShotNoise, SpeckleNoise
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
 from datasets.stream_spec import StreamSpecification
 from datasets.mammoth_dataset import MammothDataset
 
@@ -40,7 +40,7 @@ class ContinualDataset:
             raise NotImplementedError(
                 'The dataset must be initialized with all the required fields.')
 
-        if args.drift_type != -1:
+        if args.concept_drift != -1:
             n_tasks = self.N_TASKS
             n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
             self.stream_spec = StreamSpecification(n_tasks, n_classes, random_seed=args.seed,
