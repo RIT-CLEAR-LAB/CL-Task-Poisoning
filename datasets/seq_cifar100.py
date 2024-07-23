@@ -141,7 +141,7 @@ class SequentialCIFAR100(ContinualDataset):
             transforms.ToTensor(), 
             ])
 
-        train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=TRANSFORM)
+        train_dataset = DriftingCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=TRANSFORM)
         test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_TRANSFORM)
 
         # applying drift to training data

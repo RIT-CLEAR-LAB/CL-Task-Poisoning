@@ -44,6 +44,8 @@ def add_experiment_args(parser: ArgumentParser) -> None:
                         Defocus Blur-> 0, Gaussian Noise-> 1, Shot Noise-> 2, Speckle Noise-> 3')
     parser.add_argument('--drift_severity', default=5, choices=[1, 2, 3, 4, 5], type=int, 
                         help='Choose the intensity of the drift transforms:')
+    parser.add_argument('--buffer_flushing', default=0, choices=[0, 1], type=int, 
+                        help='Choose to enable buffer flushing')
 
 def add_management_args(parser: ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=None,
