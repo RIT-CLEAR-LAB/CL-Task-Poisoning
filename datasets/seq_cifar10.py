@@ -145,32 +145,32 @@ class SequentialCIFAR10(ContinualDataset):
     N_CLASSES_PER_TASK = 2
     N_TASKS = 5
 
+    DRIFT_TYPES = [
+        DefocusBlur,
+        GaussianNoise,
+        ShotNoise,
+        SpeckleNoise
+    ]
+
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
         DRIFT_SEVERITY = self.args.drift_severity
-        DRIFTS = [
-            DefocusBlur(DRIFT_SEVERITY),
-            GaussianNoise(DRIFT_SEVERITY),
-            ShotNoise(DRIFT_SEVERITY),
-            SpeckleNoise(DRIFT_SEVERITY)
-        ]
+        DRIFT = self.DRIFT_TYPES[self.args.train_drift]
         TRANSFORM = transforms.Compose([
-            DRIFTS[self.args.train_drift],
+            DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
         TEST_TRANSFORM = transforms.Compose([
-            DRIFTS[self.args.train_drift],
+            DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
         if train:
             DRIFT_TRANSFORM = transforms.Compose([
-                DRIFTS[self.args.concept_drift],
+                DRIFT(DRIFT_SEVERITY),
                 transforms.ToPILImage(),
                 transforms.RandomCrop(32, padding=4),
                 transforms.RandomHorizontalFlip(),
@@ -180,17 +180,25 @@ class SequentialCIFAR10(ContinualDataset):
                                 not_aug_transform=transforms.Compose([transforms.ToTensor()]), drift_transform=DRIFT_TRANSFORM)
         else:
             DRIFT_TRANSFORM = transforms.Compose([
-                DRIFTS[self.args.concept_drift],
+                DRIFT(DRIFT_SEVERITY),
                 transforms.ToPILImage(),
                 transforms.ToTensor(),
             ])
             return TestCIFAR10(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_TRANSFORM,
                                drift_transform=DRIFT_TRANSFORM)
 
-    @ staticmethod
-    def get_transform():
+    def get_transform(self):
+        DRIFT_SEVERITY = self.args.drift_severity
+        DRIFT = self.DRIFT_TYPES[self.args.train_drift]
+        TRANSFORM = transforms.Compose([
+            DRIFT(DRIFT_SEVERITY),
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+        ])
         transform = transforms.Compose(
-            [transforms.ToPILImage(), SequentialCIFAR10.TRANSFORM])
+            [transforms.ToPILImage(), TRANSFORM])
         return transform
 
     @ staticmethod
