@@ -38,7 +38,7 @@ def test_cant_use_exclusive_args():
 
 
 def test_sequential_drifts_can_iterate():
-    s = StreamSpecification(5, 10, 45, 2, sequential_drifts=True)
+    s = StreamSpecification(5, 10, 45, sequential_drifts=True)
     n_tasks = 0
     for i, task_classes in enumerate(s):
         if i == 0:
@@ -50,7 +50,7 @@ def test_sequential_drifts_can_iterate():
 
 
 def test_n_drifts_can_iterate():
-    s = StreamSpecification(5, 10, 45, 2, n_drifts=3)
+    s = StreamSpecification(5, 10, 45, n_drifts=3)
     it = iter(s)
     assert next(it) == [0, 1]
     assert next(it) == [0, 1, 2, 3]
@@ -60,7 +60,7 @@ def test_n_drifts_can_iterate():
 
 
 def test_n_drifts_can_iterate_ndrifts_1():
-    s = StreamSpecification(5, 10, 45, 2, n_drifts=1)
+    s = StreamSpecification(5, 10, 45, n_drifts=1)
     it = iter(s)
     assert next(it) == [0, 1]
     assert next(it) == [2, 3]

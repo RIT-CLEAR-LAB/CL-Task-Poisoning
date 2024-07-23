@@ -102,7 +102,16 @@ class StreamSpecification:
         for _ in range(self.n_tasks):
             if len(classes_list) < self.n_slots:
                 classes_list.extend(range(self.n_classes))
-            selected_classes = random_state.choice(classes_list, size=self.n_slots, replace=False)
+
+            selected_classes = [None]
+            label = None
+            for _ in range(self.n_slots):
+                while label in selected_classes:
+                    label = random_state.choice(classes_list, replace=False)
+                selected_classes.append(label)
+
+            selected_classes.remove(None)
+
             for c in selected_classes:
                 classes_list.remove(c)
             task_classes.append(list(selected_classes))

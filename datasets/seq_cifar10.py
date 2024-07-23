@@ -67,6 +67,12 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
         return img, target, not_aug_img
 
     def select_classes(self, classes_list: list[int]):
+        if len(classes_list) == 0:
+            self.data = np.array([])
+            self.targets = np.array([])
+            self.classes = []
+            return
+
         mask = np.zeros_like(np.array(self.targets))
         for label in classes_list:
             mask = np.logical_or(mask, np.array(self.targets) == label)
@@ -118,6 +124,12 @@ class TestCIFAR10(MammothDataset, CIFAR10):
         return img, target
 
     def select_classes(self, classes_list: list[int]):
+        if len(classes_list) == 0:
+            self.data = np.array([])
+            self.targets = np.array([])
+            self.classes = []
+            return
+
         mask = np.zeros_like(np.array(self.targets))
         for label in classes_list:
             mask = np.logical_or(mask, np.array(self.targets) == label)
