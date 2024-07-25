@@ -179,7 +179,7 @@ class StreamSpecification:
         counter = collections.Counter()
         for classes in self.task_classes:
             counter.update(classes)
-        max_occurence = counter.most_common(1)[0]
+        max_occurence = counter.most_common(1)[0][1]
         return max_occurence - 1
 
 

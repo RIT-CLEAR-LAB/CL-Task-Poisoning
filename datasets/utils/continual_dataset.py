@@ -40,7 +40,7 @@ class ContinualDataset:
             raise NotImplementedError(
                 'The dataset must be initialized with all the required fields.')
 
-        if args.concept_drift != -1:
+        if args.n_slots or args.n_drifts or args.sequential_drifts:
             n_tasks = self.N_TASKS
             n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
             self.stream_spec = StreamSpecification(n_tasks, n_classes, random_seed=args.seed,
@@ -75,8 +75,10 @@ class ContinualDataset:
         current_classes = self.stream_spec.new_classes_last_task
         train_dataset = self.get_dataset(train=True)
         train_dataset.select_classes(current_classes)
+        train_dataset.prepare_normal_data()
         test_dataset = self.get_dataset(train=False)
         test_dataset.select_classes(current_classes)
+        test_dataset.prepare_normal_data()
 
         drifted_classes = self.stream_spec.drifted_classes_last_task
         if len(drifted_classes) > 0:
@@ -90,6 +92,7 @@ class ContinualDataset:
 
             train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
             test_dataset = torch.utils.data.ConcatDataset([drifting_test_dataset, test_dataset])
+        print('train dataset len = ', len(train_dataset))
         train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
         self.train_loader = train_loader
 
@@ -99,6 +102,7 @@ class ContinualDataset:
                 if type(prev_test_data) == torch.utils.data.ConcatDataset:
                     for prev_data in prev_test_data.datasets:
                         prev_data.apply_drift(drifted_classes)
+                    prev_test_data.cumulative_sizes = prev_test_data.cumsum(prev_test_data.datasets)
                 else:
                     prev_test_data.apply_drift(drifted_classes)
                 self.test_loaders[t] = DataLoader(prev_test_data, batch_size=self.args.batch_size, shuffle=False, num_workers=4)

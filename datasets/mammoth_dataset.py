@@ -16,3 +16,8 @@ class MammothDataset(abc.ABC):
     def apply_drift(self, classes: list[int]):
         """applies drift to selected classes"""
         raise NotImplementedError
+
+    @abc.abstractmethod
+    def prepare_normal_data(self):
+        """prepares standard data, drift-free distribution"""
+        raise NotImplementedError

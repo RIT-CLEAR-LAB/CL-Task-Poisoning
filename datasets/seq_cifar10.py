@@ -3,7 +3,6 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
-from datasets.mammoth_dataset import MammothDataset
 from typing import Tuple
 
 import torch.nn.functional as F
@@ -79,6 +78,12 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
         if len(set(self.classes).union(classes)) == 0:
             return
         self.drifted_classes.extend(classes)
+
+        # TODO: figure out how to apply drift based on transform multiple times
+        # maybe we should change transforms or change the drift severity?
+
+    def prepare_normal_data(self):
+        pass
 
 
 class TestCIFAR10(MammothDataset, CIFAR10):
