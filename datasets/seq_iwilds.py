@@ -56,12 +56,9 @@ class WildsDatasetBase(MammothDataset):
         self.group_counter = [0 for _ in range(n_classes)]
 
         self.set_orignal_data()
-
-        valid_classes = list(class_mapping.keys())
+        self.y_array = torch.Tensor([self.class_mapping[c.item()] if c.item() in self.class_mapping else -1 for c in self.y_array]).to(torch.long)
+        valid_classes = list(class_mapping.values())
         self.select_classes(valid_classes)
-        self.classes = list(class_mapping.values())
-
-        self.y_array = torch.Tensor([self.class_mapping[c.item()] for c in self.y_array if c.item() in self.class_mapping]).to(torch.long)
 
     def set_orignal_data(self):
         dataset = get_dataset(dataset="iwildcam", download=True).get_subset(self.subset_name)
@@ -106,7 +103,7 @@ class WildsDatasetBase(MammothDataset):
 
         # we need to make sure that applying more than one drift works
         self.set_orignal_data()
-        self.y_array = torch.Tensor([self.class_mapping[c.item()] for c in self.y_array if c.item() in self.class_mapping]).to(torch.long)
+        self.y_array = torch.Tensor([self.class_mapping[c.item()] if c.item() in self.class_mapping else -1 for c in self.y_array]).to(torch.long)
         self.select_classes(self.classes)
         self.select_domains(selected_traps)
 
