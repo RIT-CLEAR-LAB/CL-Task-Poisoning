@@ -69,8 +69,6 @@ class WildsDatasetBase(MammothDataset):
         assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
 
     def select_classes(self, classes_list: list[int]) -> None:
-        print('select classes call')
-        print('classes_list = ', classes_list)
         if len(classes_list) == 0:
             self.input_array = []
             self.y_array = []
@@ -78,17 +76,14 @@ class WildsDatasetBase(MammothDataset):
             self.classes = []
             return
 
-        # print('y_array before = ', self.y_array)
         idx = list()
         for c in classes_list:
             idx.extend(torch.argwhere(self.y_array == c).flatten().tolist())
-        # print('idx = ', idx)
         self.input_array = self.input_array[idx]
         self.y_array = self.y_array[idx]
         self.metadata_array = self.metadata_array[idx]
 
         self.classes = classes_list
-        print('dataset len after select classes = ', len(self))
 
     def apply_drift(self, classes: list):
         if len(set(self.classes).union(classes)) == 0:
@@ -130,9 +125,6 @@ class WildsDatasetBase(MammothDataset):
         self.input_array = self.input_array[idx]
         self.y_array = self.y_array[idx]
         self.metadata_array = self.metadata_array[idx]
-        print('dataset len after select_domains = ', len(self))
-        print('self.y_array classes = ', torch.unique(self.y_array))
-        print()
 
     def __len__(self):
         return len(self.y_array)
@@ -194,13 +186,9 @@ class SequentialIWilds(ContinualDataset):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         n_groups = self.stream_spec.max_drifts_per_class + 1
-        print('number groups = ', n_groups)
         valid_classes = sorted(get_valid_classes(min_domains=n_groups))
         self.n_classes = len(valid_classes)
-        print('valid classes = ', valid_classes)
-        print('valid classes len = ', len(valid_classes))
         self.class_mapping = {i: j for i, j in zip(valid_classes, range(len(valid_classes)))}
-        print('class mapping = ', self.class_mapping)
 
         n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
         if self.args.n_slots is not None:

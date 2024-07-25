@@ -92,7 +92,6 @@ class ContinualDataset:
 
             train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
             test_dataset = torch.utils.data.ConcatDataset([drifting_test_dataset, test_dataset])
-        print('train dataset len = ', len(train_dataset))
         train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
         self.train_loader = train_loader
 
