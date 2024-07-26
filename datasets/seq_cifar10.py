@@ -142,6 +142,9 @@ class TestCIFAR10(MammothDataset, CIFAR10):
             return
         self.drifted_classes.extend(classes)
 
+    def prepare_normal_data(self):
+        pass
+
 
 class SequentialCIFAR10(ContinualDataset):
 

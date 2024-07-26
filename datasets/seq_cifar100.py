@@ -11,31 +11,26 @@ import torchvision.transforms as transforms
 from backbone.ResNet18 import resnet18
 from PIL import Image
 from torchvision.datasets import CIFAR100
+import numpy as np
 
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.utils.validation import get_train_val
 from utils.conf import base_path_dataset as base_path
 from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
+from datasets.mammoth_dataset import MammothDataset
 
 
-class TCIFAR100(CIFAR100):
-    """Workaround to avoid printing the already downloaded messages."""
-
-    def __init__(self, root, train=True, transform=None, target_transform=None, download=False) -> None:
-        self.root = root
-        super(TCIFAR100, self).__init__(root, train, transform, target_transform, download=not self._check_integrity())
-
-
-class MyCIFAR100(CIFAR100):
-    """
-    Overrides the CIFAR100 dataset to change the getitem function.
-    """
-
-    def __init__(self, root, train=True, transform=None, target_transform=None, download=False) -> None:
-        self.not_aug_transform = transforms.Compose([transforms.ToTensor()])
-        self.root = root
-        super(MyCIFAR100, self).__init__(root, train, transform, target_transform, not self._check_integrity())
+class TrainCIFAR100(MammothDataset, CIFAR100):
+    def __init__(self, root: str, train: bool = True, transform=None, target_transform=None,
+                 not_aug_transform=None, drift_transform=None,
+                 download: bool = False) -> None:
+        super().__init__(root, train, transform, target_transform, download)
+        self.not_aug_transform = not_aug_transform
+        self.drift_transform = drift_transform
+        assert transform is not None  # TODO fix parameter order
+        assert not_aug_transform is not None
+        assert drift_transform is not None
+        self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
         """
@@ -49,10 +44,12 @@ class MyCIFAR100(CIFAR100):
         img = Image.fromarray(img, mode='RGB')
         original_img = img.copy()
 
-        not_aug_img = self.not_aug_transform(original_img)
-
-        if self.transform is not None:
+        if target in self.drifted_classes:
+            img = self.drift_transform(img)
+            not_aug_img = self.drift_transform(original_img)
+        else:
             img = self.transform(img)
+            not_aug_img = self.not_aug_transform(original_img)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
@@ -62,32 +59,91 @@ class MyCIFAR100(CIFAR100):
 
         return img, target, not_aug_img
 
+    def select_classes(self, classes_list: list[int]):
+        if len(classes_list) == 0:
+            self.data = np.array([])
+            self.targets = np.array([])
+            self.classes = []
+            return
 
-class DriftingCIFAR100(CIFAR100):
+        mask = np.zeros_like(np.array(self.targets))
+        for label in classes_list:
+            mask = np.logical_or(mask, np.array(self.targets) == label)
+        self.data = self.data[mask]
+        self.targets = np.array(self.targets)[mask]
 
-    def __init__(self, root, train=True, transform=None, target_transform=None, download=False) -> None:
+        self.classes = classes_list
+
+    def apply_drift(self, classes: list):
+        if len(set(self.classes).union(classes)) == 0:
+            return
+        self.drifted_classes.extend(classes)
+
+        # TODO: figure out how to apply drift based on transform multiple times
+        # maybe we should change transforms or change the drift severity?
+
+    def prepare_normal_data(self):
+        pass
+
+
+class TestCIFAR100(MammothDataset, CIFAR100):
+    """Workaround to avoid printing the already downloaded messages."""
+
+    def __init__(self, root, train=True, transform=None, drift_transform=None, target_transform=None, download=False) -> None:
         self.root = root
-        super(DriftingCIFAR100, self).__init__(root, train, transform, target_transform, not self._check_integrity())
+        super().__init__(root, train, transform, target_transform, download=not self._check_integrity())
+        self.drift_transform = drift_transform
+        assert transform is not None  # TODO fix parameter order
+        assert drift_transform is not None
 
-    def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
+        self.classes = list(range(10))
+
+    def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
         img, target = self.data[index], self.targets[index]
 
+        # doing this so that it is consistent with all other datasets
         # to return a PIL Image
-        img = Image.fromarray(img, mode='RGB')
-        original_img = img.copy()
+        img = Image.fromarray(img)
 
-        # applying transform to both training data and data to be stored in buffer
-        if self.transform is not None:
+        if target in self.drifted_classes:
+            img = self.drift_transform(img)
+        else:
             img = self.transform(img)
-            not_aug_img = self.transform(original_img)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        if hasattr(self, 'logits'):
-            return img, target, not_aug_img, self.logits[index]
+        return img, target
 
-        return img, target, not_aug_img
+    def select_classes(self, classes_list: list[int]):
+        if len(classes_list) == 0:
+            self.data = np.array([])
+            self.targets = np.array([])
+            self.classes = []
+            return
+
+        mask = np.zeros_like(np.array(self.targets))
+        for label in classes_list:
+            mask = np.logical_or(mask, np.array(self.targets) == label)
+        self.data = self.data[mask]
+        self.targets = np.array(self.targets)[mask]
+
+        self.classes = classes_list
+
+    def apply_drift(self, classes: list):
+        if len(set(self.classes).union(classes)) == 0:
+            return
+        self.drifted_classes.extend(classes)
+
+    def prepare_normal_data(self):
+        pass
 
 
 class SequentialCIFAR100(ContinualDataset):
@@ -96,92 +152,61 @@ class SequentialCIFAR100(ContinualDataset):
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 5
     N_TASKS = 20
-    TRANSFORM = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        # transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
-    ])
-    TEST_TRANSFORM = transforms.Compose([
-        transforms.ToTensor(),
-        # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
-    ])
 
-    def get_examples_number(self):
-        train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True)
-        return len(train_dataset.data)
+    DRIFT_TYPES = [
+        DefocusBlur,
+        GaussianNoise,
+        ShotNoise,
+        SpeckleNoise
+    ]
 
-    def get_data_loaders(self):
-
-        train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=self.TRANSFORM)
-
-        if self.args.validation:
-            train_dataset, test_dataset = get_train_val(train_dataset, self.TEST_TRANSFORM, self.NAME)
-        else:
-            test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=self.TEST_TRANSFORM)
-
-        train, test = store_masked_loaders(train_dataset, test_dataset, self)
-
-        return train, test
-
-    def get_drifted_data_loaders(self, args):
-
-        DRIFT_SEVERITY = args.drift_severity
-        DRIFTS = [
-            DefocusBlur(DRIFT_SEVERITY),
-            GaussianNoise(DRIFT_SEVERITY),
-            ShotNoise(DRIFT_SEVERITY),
-            SpeckleNoise(DRIFT_SEVERITY)
-        ]
-
+    def get_dataset(self, train=True):
+        """returns native version of represented dataset"""
+        DRIFT_SEVERITY = self.args.drift_severity
+        DRIFT = self.DRIFT_TYPES[self.args.train_drift]
         TRANSFORM = transforms.Compose([
-            DRIFTS[args.train_drift],
+            DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
         ])
-
         TEST_TRANSFORM = transforms.Compose([
-            DRIFTS[args.train_drift],
+            DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.ToTensor(),
         ])
+        if train:
+            DRIFT_TRANSFORM = transforms.Compose([
+                DRIFT(DRIFT_SEVERITY),
+                transforms.ToPILImage(),
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+            ])
+            return TrainCIFAR100(base_path() + 'CIFAR10', train=True, download=True, transform=TRANSFORM,
+                                 not_aug_transform=transforms.Compose([transforms.ToTensor()]), drift_transform=DRIFT_TRANSFORM)
+        else:
+            DRIFT_TRANSFORM = transforms.Compose([
+                DRIFT(DRIFT_SEVERITY),
+                transforms.ToPILImage(),
+                transforms.ToTensor(),
+            ])
+            return TestCIFAR100(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_TRANSFORM,
+                                drift_transform=DRIFT_TRANSFORM)
 
-        train_dataset = MyCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=TRANSFORM)
-        test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_TRANSFORM)
-
-        # applying drift to training data
-        DRIFT_TRANSFORM = transforms.Compose([
-            DRIFTS[args.concept_drift],
+    def get_transform(self):
+        DRIFT_SEVERITY = self.args.drift_severity
+        DRIFT = self.DRIFT_TYPES[self.args.train_drift]
+        TRANSFORM = transforms.Compose([
+            DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
         ])
-
-        # applying drift to test data
-        TEST_DRIFT_TRANSFORM = transforms.Compose([
-            DRIFTS[args.concept_drift],
-            transforms.ToPILImage(),
-            transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
-        ])
-
-        drifting_train_dataset = DriftingCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=DRIFT_TRANSFORM)
-        drifting_test_dataset = TCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_DRIFT_TRANSFORM)
-
-        train, test = store_drifted_masked_loaders(train_dataset=train_dataset, test_dataset=test_dataset,
-                                                   drifting_train_dataset=drifting_train_dataset,
-                                                   drifting_test_dataset=drifting_test_dataset, setting=self)
-
-        return train, test
-
-    @staticmethod
-    def get_transform():
         transform = transforms.Compose(
-            [transforms.ToPILImage(), SequentialCIFAR100.TRANSFORM])
+            [transforms.ToPILImage(), TRANSFORM])
         return transform
 
     @staticmethod
