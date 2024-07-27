@@ -209,39 +209,39 @@ class SequentialCIFAR10(ContinualDataset):
             [transforms.ToPILImage(), TRANSFORM])
         return transform
 
-    @ staticmethod
+    @staticmethod
     def get_backbone():
         return resnet18(SequentialCIFAR10.N_CLASSES_PER_TASK
                         * SequentialCIFAR10.N_TASKS)
 
-    @ staticmethod
+    @staticmethod
     def get_loss():
         return F.cross_entropy
 
-    @ staticmethod
+    @staticmethod
     def get_normalization_transform():
         transform = transforms.Normalize((0.4914, 0.4822, 0.4465),
                                          (0.2470, 0.2435, 0.2615))
         return transform
 
-    @ staticmethod
+    @staticmethod
     def get_denormalization_transform():
         transform = DeNormalize((0.4914, 0.4822, 0.4465),
                                 (0.2470, 0.2435, 0.2615))
         return transform
 
-    @ staticmethod
+    @staticmethod
     def get_scheduler(model, args):
         return None
 
-    @ staticmethod
+    @staticmethod
     def get_epochs():
         return 50
 
-    @ staticmethod
+    @staticmethod
     def get_batch_size():
         return 32
 
-    @ staticmethod
+    @staticmethod
     def get_minibatch_size():
         return SequentialCIFAR10.get_batch_size()
