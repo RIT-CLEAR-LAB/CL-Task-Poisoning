@@ -69,11 +69,8 @@ def reservoir(num_seen_examples: int, buffer_size: int, current_size: int) -> in
     :param buffer_size: the maximum buffer size
     :return: the target index if the current image is sampled, else -1
     """
-    if num_seen_examples < buffer_size:
-        return num_seen_examples
-
-    if current_size < buffer_size:
-        return current_size
+    if num_seen_examples < buffer_size or current_size < buffer_size:
+        return min(num_seen_examples, current_size)
 
     rand = np.random.randint(0, num_seen_examples + 1)
     if rand < buffer_size:
@@ -89,11 +86,8 @@ def balanced_reservoir_sampling(num_seen_examples: int, buffer_size: int, curren
     :param buffer_size: the maximum buffer size
     :return: the target index if the current image is sampled, else -1
     """
-    if num_seen_examples < buffer_size:
-        return num_seen_examples
-
-    if current_size < buffer_size:
-        return current_size
+    if num_seen_examples < buffer_size or current_size < buffer_size:
+        return min(num_seen_examples, current_size)
 
     rand = np.random.randint(0, num_seen_examples + 1)
     if rand < buffer_size:
@@ -176,8 +170,7 @@ class Buffer:
                 raise ValueError('Invalid mode')
             self.num_seen_examples += 1
             if index >= 0:
-                self.current_size += 1
-                self.current_size = min(self.current_size, self.buffer_size)
+                self.current_size = min(self.current_size + 1, self.buffer_size)
                 self.examples[index] = examples[i].to(self.device)
                 if labels is not None:
                     self.labels[index] = labels[i].to(self.device)
@@ -302,6 +295,6 @@ class Buffer:
                 new_tensor = torch.cat([tensor[idx], padding], dim=0)
                 assert new_tensor.shape == tensor.shape
                 setattr(self, attr_str, new_tensor)
-        self.current_size = len(self) - num_removed
+        self.current_size = max(self.current_size - num_removed, 0)
         self.num_seen_examples -= num_removed
         print(f"Class {label} samples removed: {num_removed}")

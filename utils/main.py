@@ -8,23 +8,24 @@ import importlib
 import os
 import socket
 import sys
-
-
-mammoth_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(mammoth_path)
-sys.path.append(mammoth_path + '/datasets')
-sys.path.append(mammoth_path + '/backbone')
-sys.path.append(mammoth_path + '/models')
+import setproctitle
+import torch
 
 import datetime
 import uuid
 from argparse import ArgumentParser
 
-import setproctitle
-import torch
-from datasets import NAMES as DATASET_NAMES
-from datasets import ContinualDataset, get_dataset
-from models import get_all_models, get_model
+
+mammoth_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # nopep8
+sys.path.append(mammoth_path)  # nopep8
+sys.path.append(mammoth_path + '/datasets')  # nopep8
+sys.path.append(mammoth_path + '/backbone')  # nopep8
+sys.path.append(mammoth_path + '/models')  # nopep8
+
+
+from datasets import NAMES as DATASET_NAMES  # nopep8
+from datasets import ContinualDataset, get_dataset  # nopep8
+from models import get_all_models, get_model  # nopep8
 
 from utils.args import add_management_args
 from utils.best_args import best_args

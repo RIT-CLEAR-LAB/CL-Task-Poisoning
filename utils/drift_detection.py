@@ -7,6 +7,7 @@ from functools import partial
 from alibi_detect.cd.pytorch import preprocess_drift
 from alibi_detect.cd import MMDDrift, ClassifierUncertaintyDrift
 
+
 def initialize_detector(ref_data, device):
     encoding_dim = 32
     encoder_net = nn.Sequential(
@@ -25,6 +26,7 @@ def initialize_detector(ref_data, device):
 
     return cd
 
+
 def detect_drift(drifting_classes, train_loader, model):
     if len(drifting_classes) == 0:
         return
@@ -38,7 +40,7 @@ def detect_drift(drifting_classes, train_loader, model):
             selected_images = img_batch[mask]
             filtered_images.append(selected_images)
 
-        new_images =  torch.cat(filtered_images, dim=0)
+        new_images = torch.cat(filtered_images, dim=0)
 
         if new_images.size(0) > 0:
             ref_samples = model.buffer.get_class_data(cls)
@@ -48,6 +50,7 @@ def detect_drift(drifting_classes, train_loader, model):
             print(f"Drift in class {cls}? {labels[preds['data']['is_drift']]}")
             print(f'p-value: {preds["data"]["p_val"]:.3f}')
             print(f'MMD-Distance: {preds["data"]["distance"]:.3f}')
+
 
 def initialize_uncertainty_detector(ref_data, device):
     encoding_dim = 32
@@ -60,6 +63,7 @@ def initialize_uncertainty_detector(ref_data, device):
     cd = ClassifierUncertaintyDrift(ref_data, model=clf, backend='pytorch', p_val=0.05, preds_type='logits')
 
     return cd
+
 
 def detect_uncertainty_drift(drifting_classes, train_loader, model):
     if len(drifting_classes) == 0:
@@ -74,9 +78,9 @@ def detect_uncertainty_drift(drifting_classes, train_loader, model):
             selected_images = img_batch[mask]
             filtered_images.append(selected_images)
 
-        new_images =  torch.cat(filtered_images, dim=0)
+        new_images = torch.cat(filtered_images, dim=0)
 
-        if new_images.size(0) > 0:
+        if new_images.size(0) > 0 and hasattr(model, 'buffer'):
             ref_samples = model.buffer.get_class_data(cls)
             if not isinstance(ref_samples, int):
                 drift_detector = initialize_uncertainty_detector(ref_samples, model.device)
@@ -86,4 +90,3 @@ def detect_uncertainty_drift(drifting_classes, train_loader, model):
 
                 if preds['data']['is_drift']:       # removing drifted samples from buffer
                     model.buffer.flush_class(cls)
-

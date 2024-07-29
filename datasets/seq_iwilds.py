@@ -9,11 +9,11 @@ import torch.utils.data
 import torchvision.transforms as transforms
 
 from wilds import get_dataset
-from wilds.common.data_loaders import get_train_loader
 from datasets.transforms.denormalization import DeNormalize
-from datasets.utils.continual_dataset import (ContinualDataset, store_masked_loaders, store_drifted_masked_loaders)
+from datasets.utils.continual_dataset import ContinualDataset
 from torch.utils.data import DataLoader, Dataset
 from torchvision.models import resnet18, ResNet18_Weights
+from datasets.mammoth_dataset import MammothDataset
 
 import copy
 import collections
@@ -38,63 +38,126 @@ def get_class_details() -> Tuple[dict[int, list], collections.Counter]:
     return class_traps_ids, class_counts
 
 
-@functools.cache
-def get_valid_classes():
+def get_valid_classes(min_samples=500, min_domains=2):
     """return list of classes that have at last 500 samples and at least 2 domains"""
     class_traps_ids, class_counts = get_class_details()
-    selected_classes = [label for label in class_traps_ids if len(class_traps_ids[label]) > 2 and class_counts[label] >= 500]
+    selected_classes = [label for label in class_traps_ids if len(class_traps_ids[label]) >= min_domains and class_counts[label] >= min_samples]
     return selected_classes
 
 
-class TrainIWilds:
-    def __init__(self, transform, not_aug_transform, target_transform) -> None:
-        dataset = get_dataset(dataset="iwildcam", download=True)
+class WildsDatasetBase(MammothDataset):
+    def __init__(self, transform, class_mapping, class_traps):
+        super().__init__()
         self.transforms = transform
-        self.not_aug_transform = not_aug_transform
-        self.target_transform = target_transform
-        train_data = dataset.get_subset("train")
-        self.subset = torch.utils.data.Subset(train_data, list(range(len(train_data))))
+        self.class_mapping = class_mapping
+        self.class_traps = class_traps
+
+        n_classes = len(class_mapping)
+        self.group_counter = [0 for _ in range(n_classes)]
+
+        self.set_orignal_data()
+        self.y_array = torch.Tensor([self.class_mapping[c.item()] if c.item() in self.class_mapping else -1 for c in self.y_array]).to(torch.long)
+        valid_classes = list(class_mapping.values())
+        self.select_classes(valid_classes)
+
+    def set_orignal_data(self):
+        dataset = get_dataset(dataset="iwildcam", download=True).get_subset(self.subset_name)
+        self.data_dir = dataset.dataset.data_dir
+        self.input_array = dataset.dataset._input_array[dataset.indices]
+        self.y_array = dataset.y_array
+        self.metadata_array = dataset.metadata_array
+        assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
+
+    def select_classes(self, classes_list: list[int]) -> None:
+        if len(classes_list) == 0:
+            self.input_array = []
+            self.y_array = []
+            self.metadata_array = []
+            self.classes = []
+            return
+
+        idx = list()
+        for c in classes_list:
+            idx.extend(torch.argwhere(self.y_array == c).flatten().tolist())
+        self.input_array = self.input_array[idx]
+        self.y_array = self.y_array[idx]
+        self.metadata_array = self.metadata_array[idx]
+
+        self.classes = classes_list
+
+    def apply_drift(self, classes: list):
+        if len(set(self.classes).union(classes)) == 0:
+            return
+        self.drifted_classes.extend(classes)
+
+        selected_traps = dict()
+        for label in classes:
+            self.group_counter[label] += 1
+            group_idx = self.group_counter[label]
+            selected_traps[label] = self.class_traps[group_idx][label]
+
+        # we need to make sure that applying more than one drift works
+        self.set_orignal_data()
+        self.y_array = torch.Tensor([self.class_mapping[c.item()] if c.item() in self.class_mapping else -1 for c in self.y_array]).to(torch.long)
+        self.select_classes(self.classes)
+        self.select_domains(selected_traps)
+
+    def prepare_normal_data(self):
+        selected_traps = dict()
+        for label in self.classes:
+            allowed_traps = self.class_traps[0][label]
+            selected_traps[label] = allowed_traps
+
+        # we need to make sure that applying more than one drift works
+        self.select_domains(selected_traps)
 
     def select_domains(self, class_traps: dict[list]) -> None:
-        selected_samples = list()
-        for i, (_, label, metadata) in enumerate(self.subset):
-            if metadata[0].item() in class_traps[label.item()]:
-                selected_samples.append(i)
-        self.subset.indices = [self.subset.indices[i] for i in selected_samples]
-
-    def select_classes(self, condiction: callable) -> None:
-        selected_samples = list()
-        for i, (_, label, _) in enumerate(self.subset):
+        idx = list()
+        for i, (label, meta) in enumerate(zip(self.y_array, self.metadata_array)):
             label = label.item()
-            if label in self.target_transform and condiction(self.target_transform[label]):
-                selected_samples.append(i)
-        self.subset.indices = [self.subset.indices[i] for i in selected_samples]
+            trap_id = meta[0].item()
+            if label not in class_traps:
+                idx.append(i)
+                continue
+            if trap_id in class_traps[label]:
+                idx.append(i)
+
+        self.input_array = self.input_array[idx]
+        self.y_array = self.y_array[idx]
+        self.metadata_array = self.metadata_array[idx]
+
+    def __len__(self):
+        return len(self.y_array)
+
+
+class TrainIWilds(WildsDatasetBase):
+    def __init__(self, transform, not_aug_transform, class_mapping, class_traps) -> None:
+        self.subset_name = 'train'
+        self.not_aug_transform = not_aug_transform
+        super().__init__(transform, class_mapping, class_traps)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
-        not_aug_img, label, _ = self.subset[index]
+        img_path = self.data_dir / 'train' / self.input_array[index]
+        not_aug_img = Image.open(img_path)
+        label = self.y_array[index]
 
         img = self.transforms(not_aug_img)
-        label = self.target_transform[label.item()]
         not_aug_img = self.not_aug_transform(not_aug_img)
         return img, label, not_aug_img
 
-    def __len__(self):
-        return len(self.subset)
 
-
-class TestIWilds(TrainIWilds):
-    def __init__(self, transform, target_transform, use_validation=False) -> None:
-        dataset = get_dataset(dataset="iwildcam", download=True)
-        self.transforms = transform
-        self.target_transform = target_transform
-        test_data = dataset.get_subset("val" if use_validation else "test")
-        self.subset = torch.utils.data.Subset(test_data, list(range(len(test_data))))
+class TestIWilds(WildsDatasetBase):
+    def __init__(self, transform, class_mapping, class_traps, use_validation=False) -> None:
+        self.subset_name = 'val' if use_validation else 'test'
+        super().__init__(transform, class_mapping, class_traps)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
-        not_aug_img, label, _ = self.subset[index]
+        assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
+        img_path = self.data_dir / 'train' / self.input_array[index]
+        not_aug_img = Image.open(img_path)
+        label = self.y_array[index]
 
         img = self.transforms(not_aug_img)
-        label = self.target_transform[label.item()]
         return img, label
 
 
@@ -102,7 +165,7 @@ class SequentialIWilds(ContinualDataset):
     NAME = 'seq-iwilds'
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 5
-    N_TASKS = 9
+    N_TASKS = 8
     TRANSFORM = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomCrop(224, padding=4),
@@ -122,61 +185,35 @@ class SequentialIWilds(ContinualDataset):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        valid_classes = sorted(get_valid_classes())
+        n_groups = self.stream_spec.max_drifts_per_class + 1
+        valid_classes = sorted(get_valid_classes(min_domains=n_groups))
+        self.n_classes = len(valid_classes)
         self.class_mapping = {i: j for i, j in zip(valid_classes, range(len(valid_classes)))}
 
+        n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
+        if self.args.n_slots is not None:
+            assert n_classes * n_groups >= self.N_TASKS * self.args.n_slots, f'not enough classes to fill all slots, n_groups = {n_groups}, n_slots={self.args.n_slots}'
+
         class_traps_ids, _ = get_class_details()
-        self.class_normal_traps = collections.defaultdict(list)
-        self.class_drift_traps = collections.defaultdict(list)
+
+        self.class_traps = [collections.defaultdict(list) for _ in range(n_groups)]
+
         for label, trap_ids in class_traps_ids.items():
             if label not in valid_classes:
                 continue
-            i = len(trap_ids) // 2
-            self.class_normal_traps[label].extend(trap_ids[:i])
-            self.class_drift_traps[label].extend(trap_ids[i:])
+            for i in range(n_groups):
+                group_size = len(trap_ids) // n_groups
+                selected_traps = trap_ids[i*group_size:(i+1)*group_size]
+                assert len(selected_traps) > 0
+                new_label = self.class_mapping[label]
+                self.class_traps[i][new_label].extend(selected_traps)
 
-    def get_drifted_data_loaders(self, args):
-        train_dataset = TrainIWilds(self.TRANSFORM, self.NOT_AUG_TRANSFORM, self.class_mapping)
-        test_dataset = TestIWilds(self.TEST_TRANSFORM, self.class_mapping, use_validation=args.validation)
-        drifting_train_dataset = copy.deepcopy(train_dataset)
-        drifting_test_dataset = copy.deepcopy(test_dataset)
-
-        train_dataset.select_domains(self.class_normal_traps)
-        test_dataset.select_domains(self.class_normal_traps)
-        drifting_train_dataset.select_domains(self.class_drift_traps)
-        drifting_test_dataset.select_domains(self.class_drift_traps)
-
-        train, test = self.store_drifted_masked_loaders(train_dataset=train_dataset, test_dataset=test_dataset,
-                                                        drifting_train_dataset=drifting_train_dataset,
-                                                        drifting_test_dataset=drifting_test_dataset)
-
-        return train, test
-
-    def store_drifted_masked_loaders(self: ContinualDataset, train_dataset: Dataset, test_dataset: Dataset, drifting_train_dataset: Dataset,
-                                     drifting_test_dataset: Dataset) -> Tuple[DataLoader, DataLoader]:
-        def drift_mask(label): return label >= self.i - self.N_CLASSES_PER_TASK and label < self.i
-        def normal_mask(label): return label >= self.i and label < self.i + self.N_CLASSES_PER_TASK
-
-        drifting_train_dataset.select_classes(drift_mask)
-        drifting_test_dataset.select_classes(drift_mask)
-        train_dataset.select_classes(normal_mask)
-        test_dataset.select_classes(normal_mask)
-
-        combined_train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
-        train_loader = DataLoader(combined_train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
-        self.train_loader = train_loader
-
-        if self.i > 0:
-            drifted_test_loader = DataLoader(drifting_test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
-            self.test_loaders[len(self.test_loaders) - 1] = drifted_test_loader   # replacing previous testloader with drifted images
-
-        test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
-
-        # current test loader contains undrifted images
-        self.test_loaders.append(test_loader)
-
-        self.i += self.N_CLASSES_PER_TASK
-        return train_loader, test_loader
+    def get_dataset(self, train=True):
+        """returns native version of represented dataset"""
+        if train:
+            return TrainIWilds(self.TRANSFORM, self.NOT_AUG_TRANSFORM, self.class_mapping, self.class_traps)
+        else:
+            return TestIWilds(self.TEST_TRANSFORM, self.class_mapping, self.class_traps, use_validation=self.args.validation)
 
     @staticmethod
     def get_transform():
@@ -184,11 +221,10 @@ class SequentialIWilds(ContinualDataset):
             [transforms.ToPILImage(), SequentialIWilds.TRANSFORM])
         return transform
 
-    @staticmethod
-    def get_backbone():
+    def get_backbone(self):
         net = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
         n_classes = SequentialIWilds.N_CLASSES_PER_TASK * SequentialIWilds.N_TASKS
-        net.fc = nn.Linear(net.fc.weight.shape[1], n_classes)
+        net.fc = nn.Linear(net.fc.weight.shape[1], self.n_classes)
         return net
 
     @staticmethod
