@@ -70,7 +70,7 @@ class ContinualDataset:
     def get_drifted_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
         task_spec: list[int] = next(self.stream_spec_it)
 
-        current_classes = self.stream_spec.new_classes_last_task
+        current_classes = self.stream_spec.new_classes
         train_dataset = self.get_dataset(train=True)
         train_dataset.select_classes(current_classes)
         train_dataset.prepare_normal_data()
@@ -78,7 +78,7 @@ class ContinualDataset:
         test_dataset.select_classes(current_classes)
         test_dataset.prepare_normal_data()
 
-        drifted_classes = self.stream_spec.drifted_classes_last_task
+        drifted_classes = self.stream_spec.drifted_classes
         if len(drifted_classes) > 0:
             drifting_train_dataset = self.get_dataset(train=True)
             drifting_train_dataset.select_classes(drifted_classes)

@@ -138,7 +138,7 @@ class StreamSpecification:
         return next(self)
 
     @property
-    def drifted_classes(self):
+    def all_drifted_classes(self):
         """return all classes for which drift has occured so far"""
         seen_classes = set()
         drifted_cl = set()
@@ -151,20 +151,20 @@ class StreamSpecification:
         return list(drifted_cl)
 
     @property
-    def drifted_classes_last_task(self):
+    def drifted_classes(self):
         """return classes from last task for which dirft has occured"""
         current_classes = self.task_classes[self.current_task]
         current_classes = set(current_classes)
-        drifted_classes = set(self.drifted_classes)
+        drifted_classes = set(self.all_drifted_classes)
         current_drifted = set.intersection(current_classes, drifted_classes)
         return list(current_drifted)
 
     @property
-    def new_classes_last_task(self):
+    def new_classes(self):
         """return classes from current task"""
         current_classes = self.task_classes[self.current_task]
         current_classes = set(current_classes)
-        drifted_classes = set(self.drifted_classes)
+        drifted_classes = set(self.all_drifted_classes)
         current_drifted = current_classes - drifted_classes
         return list(current_drifted)
 

@@ -15,21 +15,21 @@ def test_drifted_classes_are_returned():
     s = StreamSpecification(5, 10, 45, 5)
     for i, _ in enumerate(s):
         if i > 0:
-            assert len(s.drifted_classes) > 0
+            assert len(s.all_drifted_classes) > 0
         else:
-            assert len(s.drifted_classes) == 0
-    assert len(s.drifted_classes) > 0
+            assert len(s.all_drifted_classes) == 0
+    assert len(s.all_drifted_classes) > 0
 
 
-def test_drifted_classes_last_task():
+def test_drifted_classes():
     s = StreamSpecification(5, 10, 45, 5)
     last_class = 0
     for tk in s:
-        for c in s.drifted_classes_last_task:
-            assert c in s.drifted_classes
+        for c in s.drifted_classes:
+            assert c in s.all_drifted_classes
             assert c <= last_class
         last_class = max(max(tk), last_class)
-    assert len(s.drifted_classes) > 0
+    assert len(s.all_drifted_classes) > 0
 
 
 def test_cant_use_exclusive_args():
