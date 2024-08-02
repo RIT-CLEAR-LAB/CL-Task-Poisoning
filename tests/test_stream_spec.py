@@ -25,7 +25,7 @@ def test_drifted_classes():
     s = StreamSpecification(5, 10, 45, 5)
     last_class = 0
     for tk in s:
-        for c in s.drifted_classes:
+        for c in s._drifted_classes:
             assert c in s.all_drifted_classes
             assert c <= last_class
         last_class = max(max(tk), last_class)
