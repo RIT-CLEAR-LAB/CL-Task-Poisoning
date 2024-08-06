@@ -5,13 +5,19 @@ from typing import Union
 
 class StreamSpecification:
     def __init__(self, n_tasks: int, n_classes: int, random_seed: int = None,
-                 n_slots: Union[int, None] = None, n_drifts: Union[int, None] = None, sequential_drifts: bool = False) -> None:
+                 n_slots: Union[int, None] = None, n_drifts: Union[int, None] = None, sequential_drifts: bool = False,
+                 max_classes_per_drift: int = 5) -> None:
         """
         Utility class that represents the class-task layout of the overall task stream.
 
         Args:
         n_tasks - number of tasks in the stream
-        n_slots - number of classes per task
+        n_classes - number of all classes in dataset
+        random_seed - random seed used for experiments
+        n_slots - number of classes per task, used for creating stream layout in the style of Class-Incremental learning with repetition
+        n_drifts - number of drifts created in whole task stream
+        sequential_drifts - if true each task will consist of set of new classes and drifted classes from previous task
+        max_classes_per_drifts - number of classes that drift is applied to. used only with n_drifts
         """
         assert n_tasks >= 2, 'need at least two tasks for continual learning'
         assert n_slots is not None or n_drifts is not None or sequential_drifts, 'must specify drift type'
@@ -29,6 +35,7 @@ class StreamSpecification:
         self.random_seed = random_seed
         self.n_drifts = n_drifts
         self.sequential_drifts = sequential_drifts
+        self.max_classes_per_drift = max_classes_per_drift
 
         self._new_classes: list[list[int]] = list()
         self._drifted_classes: list[list[int]] = list()
@@ -54,7 +61,9 @@ class StreamSpecification:
             new_classes = list(range(classes_per_task * t, classes_per_task * (t+1)))
             self._new_classes.append(new_classes)
             if t in drift_indexes:
-                self._drifted_classes.append(list(range(drfit_begin_idx, classes_per_task * t)))
+                drifted_classes = list(range(drfit_begin_idx, classes_per_task * t))
+                drifted_classes = drifted_classes[-self.max_classes_per_drift:]
+                self._drifted_classes.append(drifted_classes)
                 drfit_begin_idx = classes_per_task * t
             else:
                 self._drifted_classes.append([])
