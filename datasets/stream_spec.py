@@ -45,14 +45,7 @@ class StreamSpecification:
         assert self.n_drifts < self.n_tasks
 
         drift_duration = self.n_tasks // (self.n_drifts + 1)
-        drift_indexes = list()
-        for i in range(drift_duration, self.n_tasks, drift_duration):
-            if len(drift_indexes) == self.n_drifts:
-                break
-            drift_indexes.append(i)
-
-        if len(drift_indexes) < self.n_drifts:
-            drift_indexes.append(self.n_tasks-1)
+        drift_indexes = list(np.linspace(drift_duration, self.n_tasks, num=self.n_drifts, endpoint=False, dtype=int))
         print('Creating drifts at tasks: ', drift_indexes)
 
         classes_per_task = self.n_classes // self.n_tasks
@@ -152,3 +145,10 @@ class StreamSpecification:
             counter.update(classes)
         max_occurence = counter.most_common(1)[0][1]
         return max_occurence
+
+
+if __name__ == '__main__':
+    ss = StreamSpecification(20, 100, 45, n_drifts=10)
+    ssi = iter(ss)
+    for new, old in ssi:
+        print(f'new = {new} old = {old}')
