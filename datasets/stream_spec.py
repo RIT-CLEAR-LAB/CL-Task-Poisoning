@@ -30,8 +30,8 @@ class StreamSpecification:
         self.n_drifts = n_drifts
         self.sequential_drifts = sequential_drifts
 
-        self._new_classes = list()
-        self._drifted_classes = list()
+        self._new_classes: list[list[int]] = list()
+        self._drifted_classes: list[list[int]] = list()
         if n_drifts is not None:
             self.create_n_drifts()
         elif sequential_drifts:

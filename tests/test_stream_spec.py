@@ -5,8 +5,9 @@ from datasets.stream_spec import *
 def test_can_iterate():
     s = StreamSpecification(5, 10, 45, 2)
     n_tasks = 0
-    for task_classes in s:
-        assert len(task_classes) == 2
+    for new_classes, old_classes in s:
+        num_classes = len(new_classes) + len(old_classes)
+        assert num_classes == 2
         n_tasks += 1
     assert n_tasks == 5
 
@@ -14,7 +15,7 @@ def test_can_iterate():
 def test_drifted_classes_are_returned():
     s = StreamSpecification(5, 10, 45, 5)
     for i, _ in enumerate(s):
-        if i > 0:
+        if i > 1:
             assert len(s.all_drifted_classes) > 0
         else:
             assert len(s.all_drifted_classes) == 0
@@ -24,11 +25,12 @@ def test_drifted_classes_are_returned():
 def test_drifted_classes():
     s = StreamSpecification(5, 10, 45, 5)
     last_class = 0
-    for tk in s:
-        for c in s._drifted_classes:
+    for new_classes, old_classes in s:
+        for c in s.drifted_classes:
             assert c in s.all_drifted_classes
             assert c <= last_class
-        last_class = max(max(tk), last_class)
+        if len(new_classes) > 0:
+            last_class = max(max(new_classes), last_class)
     assert len(s.all_drifted_classes) > 0
 
 
