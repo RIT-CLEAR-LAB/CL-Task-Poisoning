@@ -40,11 +40,13 @@ def test_cant_use_exclusive_args():
 def test_sequential_drifts_can_iterate():
     s = StreamSpecification(5, 10, 45, sequential_drifts=True)
     n_tasks = 0
-    for i, task_classes in enumerate(s):
+    for i, (new_classes, old_classes) in enumerate(s):
         if i == 0:
-            assert len(task_classes) == 2
+            assert len(new_classes) == 2
+            assert len(old_classes) == 0
         else:
-            assert len(task_classes) == 4
+            assert len(new_classes) == 2
+            assert len(old_classes) == 2
         n_tasks += 1
     assert n_tasks == 5
 
@@ -52,18 +54,18 @@ def test_sequential_drifts_can_iterate():
 def test_n_drifts_can_iterate():
     s = StreamSpecification(5, 10, 45, n_drifts=3)
     it = iter(s)
-    assert next(it) == [0, 1]
-    assert next(it) == [0, 1, 2, 3]
-    assert next(it) == [2, 3, 4, 5]
-    assert next(it) == [4, 5, 6, 7]
-    assert next(it) == [8, 9]
+    assert next(it) == ([0, 1], [])
+    assert next(it) == ([2, 3], [0, 1])
+    assert next(it) == ([4, 5], [2, 3])
+    assert next(it) == ([6, 7], [4, 5])
+    assert next(it) == ([8, 9], [])
 
 
 def test_n_drifts_can_iterate_ndrifts_1():
     s = StreamSpecification(5, 10, 45, n_drifts=1)
     it = iter(s)
-    assert next(it) == [0, 1]
-    assert next(it) == [2, 3]
-    assert next(it) == [0, 1, 2, 3, 4, 5]
-    assert next(it) == [6, 7]
-    assert next(it) == [8, 9]
+    assert next(it) == ([0, 1], [])
+    assert next(it) == ([2, 3], [])
+    assert next(it) == ([4, 5], [0, 1, 2, 3])
+    assert next(it) == ([6, 7], [])
+    assert next(it) == ([8, 9], [])
