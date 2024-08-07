@@ -56,15 +56,15 @@ class StreamSpecification:
         print('Creating drifts at tasks: ', drift_indexes)
 
         classes_per_task = self.n_classes // self.n_tasks
-        drfit_begin_idx = 0
+        drift_begin_idx = 0
         for t in range(self.n_tasks):
             new_classes = list(range(classes_per_task * t, classes_per_task * (t+1)))
             self._new_classes.append(new_classes)
             if t in drift_indexes:
-                drifted_classes = list(range(drfit_begin_idx, classes_per_task * t))
+                drifted_classes = list(range(drift_begin_idx, classes_per_task * t))
                 drifted_classes = drifted_classes[-self.max_classes_per_drift:]
                 self._drifted_classes.append(drifted_classes)
-                drfit_begin_idx = classes_per_task * t
+                drift_begin_idx = classes_per_task * t
             else:
                 self._drifted_classes.append([])
 
