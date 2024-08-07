@@ -30,7 +30,7 @@ class TrainCIFAR100(MammothDataset, CIFAR100):
         assert transform is not None  # TODO fix parameter order
         assert not_aug_transform is not None
         assert drift_transform is not None
-        self.classes = list(range(10))
+        self.classes = list(range(100))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
         """
