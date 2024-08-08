@@ -16,7 +16,7 @@ from torchvision.datasets import CIFAR10
 from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -157,22 +157,24 @@ class SequentialCIFAR10(ContinualDataset):
         DefocusBlur,
         GaussianNoise,
         ShotNoise,
-        SpeckleNoise
+        SpeckleNoise,
+        Identity,
     ]
 
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
         DRIFT_SEVERITY = self.args.drift_severity
-        DRIFT = self.DRIFT_TYPES[self.args.train_drift]
+        TRAIN_DRIFT = self.DRIFT_TYPES[self.args.train_drift]
+        DRIFT = self.DRIFT_TYPES[self.args.concept_drift]
         TRANSFORM = transforms.Compose([
-            DRIFT(DRIFT_SEVERITY),
+            TRAIN_DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
         ])
         TEST_TRANSFORM = transforms.Compose([
-            DRIFT(DRIFT_SEVERITY),
+            TRAIN_DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.ToTensor(),
         ])

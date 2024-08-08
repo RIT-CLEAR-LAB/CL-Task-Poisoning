@@ -83,3 +83,13 @@ class SpeckleNoise():
 
         x = np.array(x) / 255.
         return np.clip(x + x * np.random.normal(size=x.shape, scale=c), 0, 1).astype(np.uint8)
+
+
+class Identity:
+    def __init__(self, severity=1):
+        pass
+
+    def __call__(self, x):
+        x = np.array(x) / 255.
+        x = x.astype(np.uint8)
+        return x
