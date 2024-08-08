@@ -16,7 +16,7 @@ import numpy as np
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
 from utils.conf import base_path_dataset as base_path
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -30,7 +30,7 @@ class TrainCIFAR100(MammothDataset, CIFAR100):
         assert transform is not None  # TODO fix parameter order
         assert not_aug_transform is not None
         assert drift_transform is not None
-        self.classes = list(range(10))
+        self.classes = list(range(100))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
         """
@@ -96,7 +96,7 @@ class TestCIFAR100(MammothDataset, CIFAR100):
         assert transform is not None  # TODO fix parameter order
         assert drift_transform is not None
 
-        self.classes = list(range(10))
+        self.classes = list(range(100))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
         """
@@ -157,22 +157,24 @@ class SequentialCIFAR100(ContinualDataset):
         DefocusBlur,
         GaussianNoise,
         ShotNoise,
-        SpeckleNoise
+        SpeckleNoise,
+        Identity,
     ]
 
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
         DRIFT_SEVERITY = self.args.drift_severity
-        DRIFT = self.DRIFT_TYPES[self.args.train_drift]
+        TRAIN_DRIFT = self.DRIFT_TYPES[self.args.train_drift]
+        DRIFT = self.DRIFT_TYPES[self.args.concept_drift]
         TRANSFORM = transforms.Compose([
-            DRIFT(DRIFT_SEVERITY),
+            TRAIN_DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
         ])
         TEST_TRANSFORM = transforms.Compose([
-            DRIFT(DRIFT_SEVERITY),
+            TRAIN_DRIFT(DRIFT_SEVERITY),
             transforms.ToPILImage(),
             transforms.ToTensor(),
         ])
@@ -184,7 +186,7 @@ class SequentialCIFAR100(ContinualDataset):
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
             ])
-            return TrainCIFAR100(base_path() + 'CIFAR10', train=True, download=True, transform=TRANSFORM,
+            return TrainCIFAR100(base_path() + 'CIFAR100', train=True, download=True, transform=TRANSFORM,
                                  not_aug_transform=transforms.Compose([transforms.ToTensor()]), drift_transform=DRIFT_TRANSFORM)
         else:
             DRIFT_TRANSFORM = transforms.Compose([
@@ -192,7 +194,7 @@ class SequentialCIFAR100(ContinualDataset):
                 transforms.ToPILImage(),
                 transforms.ToTensor(),
             ])
-            return TestCIFAR100(base_path() + 'CIFAR10', train=False, download=True, transform=TEST_TRANSFORM,
+            return TestCIFAR100(base_path() + 'CIFAR100', train=False, download=True, transform=TEST_TRANSFORM,
                                 drift_transform=DRIFT_TRANSFORM)
 
     def get_transform(self):
