@@ -12,54 +12,53 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from backbone.ResNet18 import resnet18
 from PIL import Image
-from torch.utils.data import Dataset
 
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.utils.validation import get_train_val
 from utils.conf import base_path_dataset as base_path
+from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
+from datasets.mammoth_dataset import MammothDataset
 
 
-class TinyImagenet(Dataset):
-    """
-    Defines Tiny Imagenet as for the others pytorch datasets.
-    """
+def download_tinyimagenet(root):
+    if os.path.isdir(root) and len(os.listdir(root)) > 0:
+        print('Download not needed, files already on disk.')
+    else:
+        from onedrivedownloader import download
 
-    def __init__(self, root: str, train: bool = True, transform: Optional[nn.Module] = None,
-                 target_transform: Optional[nn.Module] = None, download: bool = False) -> None:
-        self.not_aug_transform = transforms.Compose([transforms.ToTensor()])
-        self.root = root
-        self.train = train
+        print('Downloading dataset')
+        ln = "https://unimore365-my.sharepoint.com/:u:/g/personal/263133_unimore_it/EVKugslStrtNpyLGbgrhjaABqRHcE3PB_r2OEaV7Jy94oQ?e=9K29aD"
+        download(ln, filename=os.path.join(root, 'tiny-imagenet-processed.zip'), unzip=True, unzip_path=root, clean=True)
+
+
+def load_data(root, train=True):
+    data = []
+    for num in range(20):
+        data.append(np.load(os.path.join(
+            root, 'processed/x_%s_%02d.npy' %
+                  ('train' if train else 'val', num + 1))))
+    data = np.concatenate(np.array(data))
+
+    targets = []
+    for num in range(20):
+        targets.append(np.load(os.path.join(
+            root, 'processed/y_%s_%02d.npy' %
+                  ('train' if train else 'val', num + 1))))
+    targets = np.concatenate(np.array(targets))
+
+    return data, targets
+
+
+class TrainTinyImagenet(MammothDataset):
+    def __init__(self, root: str, transform, not_aug_transform, train_drift, drift_transform) -> None:
+        super().__init__()
         self.transform = transform
-        self.target_transform = target_transform
-        self.download = download
+        self.not_aug_transform = not_aug_transform
+        self.train_drift = train_drift
+        self.drift_transform = drift_transform
 
-        if download:
-            if os.path.isdir(root) and len(os.listdir(root)) > 0:
-                print('Download not needed, files already on disk.')
-            else:
-                from onedrivedownloader import download
-
-                print('Downloading dataset')
-                ln = "https://unimore365-my.sharepoint.com/:u:/g/personal/263133_unimore_it/EVKugslStrtNpyLGbgrhjaABqRHcE3PB_r2OEaV7Jy94oQ?e=9K29aD"
-                download(ln, filename=os.path.join(root, 'tiny-imagenet-processed.zip'), unzip=True, unzip_path=root, clean=True)
-
-        self.data = []
-        for num in range(20):
-            self.data.append(np.load(os.path.join(
-                root, 'processed/x_%s_%02d.npy' %
-                      ('train' if self.train else 'val', num + 1))))
-        self.data = np.concatenate(np.array(self.data))
-
-        self.targets = []
-        for num in range(20):
-            self.targets.append(np.load(os.path.join(
-                root, 'processed/y_%s_%02d.npy' %
-                      ('train' if self.train else 'val', num + 1))))
-        self.targets = np.concatenate(np.array(self.targets))
-
-    def __len__(self):
-        return len(self.data)
+        download_tinyimagenet(root)
+        self.data, self.targets = load_data(root, train=True)
 
     def __getitem__(self, index):
         img, target = self.data[index], self.targets[index]
@@ -67,50 +66,109 @@ class TinyImagenet(Dataset):
         # doing this so that it is consistent with all other datasets
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
+
+        if target in self.drifted_classes:
+            img = self.drift_transform(img)
+        else:
+            img = self.train_drift(img)
+
         original_img = img.copy()
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
-
-        if hasattr(self, 'logits'):
-            return img, target, original_img, self.logits[index]
-
-        return img, target
-
-
-class MyTinyImagenet(TinyImagenet):
-    """
-    Defines Tiny Imagenet as for the others pytorch datasets.
-    """
-
-    def __init__(self, root: str, train: bool = True, transform: Optional[nn.Module] = None,
-                 target_transform: Optional[nn.Module] = None, download: bool = False) -> None:
-        super(MyTinyImagenet, self).__init__(
-            root, train, transform, target_transform, download)
-
-    def __getitem__(self, index):
-        img, target = self.data[index], self.targets[index]
-
-        # doing this so that it is consistent with all other datasets
-        # to return a PIL Image
-        img = Image.fromarray(np.uint8(255 * img))
-        original_img = img.copy()
-
+        img = self.transform(img)
         not_aug_img = self.not_aug_transform(original_img)
-
-        if self.transform is not None:
-            img = self.transform(img)
-
-        if self.target_transform is not None:
-            target = self.target_transform(target)
 
         if hasattr(self, 'logits'):
             return img, target, not_aug_img, self.logits[index]
 
         return img, target, not_aug_img
+
+    def __len__(self):
+        return len(self.data)
+
+    def select_classes(self, classes_list: list[int]):
+        if len(classes_list) == 0:
+            self.data = np.array([])
+            self.targets = np.array([])
+            self.classes = []
+            return
+
+        mask = np.zeros_like(self.targets)
+        for label in classes_list:
+            mask = np.logical_or(mask, self.targets == label)
+        self.data = self.data[mask]
+        self.targets = self.targets[mask]
+
+        self.classes = classes_list
+
+    def apply_drift(self, classes: list):
+        if len(set(self.classes).union(classes)) == 0:
+            return
+        self.drifted_classes.extend(classes)
+
+        # TODO: figure out how to apply drift based on transform multiple times
+        # maybe we should change transforms or change the drift severity?
+
+    def prepare_normal_data(self):
+        pass
+
+
+class TestTinyImagenet(MammothDataset):
+    def __init__(self, root: str, transform, train_drift, drift_transform) -> None:
+        super().__init__()
+
+        self.transform = transform
+        self.train_drift = train_drift
+        self.drift_transform = drift_transform
+
+        download_tinyimagenet(root)
+        self.data, self.targets = load_data(root, train=False)
+
+    def __getitem__(self, index):
+        img, target = self.data[index], self.targets[index]
+
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        img = Image.fromarray(np.uint8(255 * img))
+
+        if target in self.drifted_classes:
+            img = self.drift_transform(img)
+        else:
+            img = self.train_drift(img)
+
+        img = self.transform(img)
+
+        if hasattr(self, 'logits'):
+            return img, target, self.logits[index]
+
+        return img, target
+
+    def __len__(self):
+        return len(self.data)
+
+    def select_classes(self, classes_list: list[int]):
+        if len(classes_list) == 0:
+            self.data = np.array([])
+            self.targets = np.array([])
+            self.classes = []
+            return
+
+        mask = np.zeros_like(self.targets)
+        for label in classes_list:
+            mask = np.logical_or(mask, self.targets == label)
+        self.data = self.data[mask]
+        self.targets = self.targets[mask]
+
+        self.classes = classes_list
+
+    def apply_drift(self, classes: list):
+        if len(set(self.classes).union(classes)) == 0:
+            return
+        self.drifted_classes.extend(classes)
+
+        # TODO: figure out how to apply drift based on transform multiple times
+        # maybe we should change transforms or change the drift severity?
+
+    def prepare_normal_data(self):
+        pass
 
 
 class SequentialTinyImagenet(ContinualDataset):
@@ -123,26 +181,36 @@ class SequentialTinyImagenet(ContinualDataset):
         [transforms.RandomCrop(64, padding=4),
          transforms.RandomHorizontalFlip(),
          transforms.ToTensor(),
-         transforms.Normalize((0.4802, 0.4480, 0.3975),
-                              (0.2770, 0.2691, 0.2821))])
+         ])
 
-    def get_data_loaders(self):
-        transform = self.TRANSFORM
+    DRIFT_TYPES = [
+        DefocusBlur,
+        GaussianNoise,
+        ShotNoise,
+        SpeckleNoise,
+        Identity,
+    ]
 
-        test_transform = transforms.Compose(
-            [transforms.ToTensor(), self.get_normalization_transform()])
+    def get_dataset(self, train=True):
+        DRIFT_SEVERITY = self.args.drift_severity
+        TRAIN_DRIFT = transforms.Compose([
+            self.DRIFT_TYPES[self.args.train_drift](DRIFT_SEVERITY),
+            transforms.ToPILImage()
+        ])
+        DRIFT = transforms.Compose([
+            self.DRIFT_TYPES[self.args.concept_drift](DRIFT_SEVERITY),
+            transforms.ToPILImage()
+        ])
 
-        train_dataset = MyTinyImagenet(base_path() + 'TINYIMG',
-                                       train=True, download=True, transform=transform)
-        if self.args.validation:
-            train_dataset, test_dataset = get_train_val(train_dataset,
-                                                        test_transform, self.NAME)
+        NO_AUG = transforms.Compose([
+            transforms.ToTensor(),
+        ])
+        if train:
+            return TrainTinyImagenet(base_path() + 'TINYIMG',
+                                     transform=self.TRANSFORM, not_aug_transform=NO_AUG, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
         else:
-            test_dataset = TinyImagenet(base_path() + 'TINYIMG',
-                                        train=False, download=True, transform=test_transform)
-
-        train, test = store_masked_loaders(train_dataset, test_dataset, self)
-        return train, test
+            return TestTinyImagenet(base_path() + 'TINYIMG',
+                                    transform=NO_AUG, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
 
     @staticmethod
     def get_backbone():
