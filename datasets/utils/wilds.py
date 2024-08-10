@@ -1,6 +1,8 @@
 import torch
 import functools
 import collections
+import numpy as np
+import pandas as pd
 
 from typing import Tuple
 from wilds import get_dataset
@@ -11,34 +13,31 @@ from datasets.mammoth_dataset import MammothDataset
 @functools.cache
 def get_class_details(dataset_name: str) -> Tuple[dict[int, list], collections.Counter]:
     dataset = get_dataset(dataset=dataset_name, download=True)
-    class_traps_ids = collections.defaultdict(set)
-    class_counts = collections.Counter()
+    class_domain_ids = collections.defaultdict(set)
+    _, class_counts = np.unique(dataset.y_array, return_counts=True)
 
-    for _, label, metadata in dataset:
-        label = label.item()
-        trap_id = metadata[0].item()
-        class_traps_ids[label].add(trap_id)
-        class_counts.update([label])
+    dataframe = pd.DataFrame(zip(dataset.y_array.numpy(), dataset.metadata_array.numpy()[:, 0]), columns=['labels', 'domains'])
+    grouped = dataframe.groupby('labels')
+    class_domain_ids = dict()
+    for label, grouped_domains in grouped:
+        class_domain_ids[label] = list(np.unique(grouped_domains['domains']))
 
-    for label, traps_ids in class_traps_ids.items():
-        class_traps_ids[label] = list(traps_ids)
-
-    return class_traps_ids, class_counts
+    return class_domain_ids, class_counts
 
 
 def get_valid_classes(dataset_name: str, min_samples=500, min_domains=2):
     """return list of classes that have at last 500 samples and at least 2 domains"""
-    class_traps_ids, class_counts = get_class_details(dataset_name)
-    selected_classes = [label for label in class_traps_ids if len(class_traps_ids[label]) >= min_domains and class_counts[label] >= min_samples]
+    class_domains_ids, class_counts = get_class_details(dataset_name)
+    selected_classes = [label for label in class_domains_ids if len(class_domains_ids[label]) >= min_domains and class_counts[label] >= min_samples]
     return selected_classes
 
 
 class WildsDatasetBase(MammothDataset):
-    def __init__(self, transform, class_mapping, class_traps):
+    def __init__(self, transform, class_mapping, class_domains):
         super().__init__()
         self.transforms = transform
         self.class_mapping = class_mapping
-        self.class_traps = class_traps
+        self.class_domains = class_domains
 
         n_classes = len(class_mapping)
         self.group_counter = [0 for _ in range(n_classes)]
@@ -73,26 +72,26 @@ class WildsDatasetBase(MammothDataset):
             return
         self.drifted_classes.extend(classes)
 
-        selected_traps = dict()
+        selected_domains = dict()
         for label in classes:
             self.group_counter[label] += 1
             group_idx = self.group_counter[label]
-            selected_traps[label] = self.class_traps[group_idx][label]
+            selected_domains[label] = self.class_domains[group_idx][label]
 
         # we need to make sure that applying more than one drift works
         self.set_orignal_data()
         self.y_array = torch.Tensor([self.class_mapping[c.item()] if c.item() in self.class_mapping else -1 for c in self.y_array]).to(torch.long)
         self.select_classes(self.classes)
-        self.select_domains(selected_traps)
+        self.select_domains(selected_domains)
 
     def prepare_normal_data(self):
-        selected_traps = dict()
+        selected_domains = dict()
         for label in self.classes:
-            allowed_traps = self.class_traps[0][label]
-            selected_traps[label] = allowed_traps
+            allowed_domains = self.class_domains[0][label]
+            selected_domains[label] = allowed_domains
 
         # we need to make sure that applying more than one drift works
-        self.select_domains(selected_traps)
+        self.select_domains(selected_domains)
 
     def select_domains(self, class_traps: dict[list]) -> None:
         idx = list()
