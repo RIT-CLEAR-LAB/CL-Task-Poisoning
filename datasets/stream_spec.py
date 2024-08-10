@@ -150,7 +150,7 @@ class StreamSpecification:
     @property
     def max_drifts_per_class(self):
         counter = collections.Counter()
-        for classes in self.drifted_classes:
+        for classes in self._drifted_classes:
             counter.update(classes)
         max_occurence = counter.most_common(1)[0][1]
         return max_occurence
