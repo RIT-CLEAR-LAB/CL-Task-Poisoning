@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import torch.utils
 import torch.utils.data
 import torchvision.transforms as transforms
+import numpy as np
+import pathlib
 import collections
 
 from torchvision.models import resnet18, ResNet18_Weights
@@ -25,8 +27,8 @@ class TrainFMoV(WildsDatasetBase):
 
     def set_orignal_data(self):
         dataset = get_dataset(dataset="fmow", download=True).get_subset(self.subset_name)
-        self.data_dir = dataset.dataset.data_dir
-        self.input_array = [f'rgb_img_{i}.png' for i in dataset.indices]
+        self.data_dir = pathlib.Path(dataset.dataset.data_dir)
+        self.input_array = np.array([f'rgb_img_{i}.png' for i in dataset.indices])
         self.y_array = dataset.y_array
         self.metadata_array = dataset.metadata_array
         assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
@@ -48,8 +50,8 @@ class TestFMoV(WildsDatasetBase):
 
     def set_orignal_data(self):
         dataset = get_dataset(dataset="fmow", download=True).get_subset(self.subset_name)
-        self.data_dir = dataset.dataset.data_dir
-        self.input_array = [f'rgb_img_{i}.png' for i in dataset.indices]
+        self.data_dir = pathlib.Path(dataset.dataset.data_dir)
+        self.input_array = np.array([f'rgb_img_{i}.png' for i in dataset.indices])
         self.y_array = dataset.y_array
         self.metadata_array = dataset.metadata_array
         assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
