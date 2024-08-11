@@ -70,7 +70,7 @@ class SequentialFMoV(ContinualDataset):
     NAME = 'seq-fmow'
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 5
-    N_TASKS = 8
+    N_TASKS = 12
     TRANSFORM = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomCrop(224, padding=4),

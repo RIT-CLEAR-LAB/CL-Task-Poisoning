@@ -94,6 +94,9 @@ class WildsDatasetBase(MammothDataset):
         self.select_domains(selected_domains)
 
     def select_domains(self, class_traps: dict[list]) -> None:
+        if len(self.input_array) == 0:
+            return
+
         idx = list()
         for i, (label, meta) in enumerate(zip(self.y_array, self.metadata_array)):
             label = label.item()

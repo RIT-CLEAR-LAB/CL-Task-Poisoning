@@ -149,6 +149,9 @@ class StreamSpecification:
 
     @property
     def max_drifts_per_class(self):
+        if len(self._drifted_classes) == 0:
+            print('max_drifts_per_class call: no drifts in current setup')
+            return 0
         counter = collections.Counter()
         for classes in self._drifted_classes:
             counter.update(classes)
