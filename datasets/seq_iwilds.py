@@ -16,7 +16,7 @@ from torchvision.models import resnet18, ResNet18_Weights
 from datasets.utils.wilds import WildsDatasetBase, get_valid_classes, get_class_details
 
 
-class TrainIWilds(WildsDatasetBase):
+class TrainIWildCam(WildsDatasetBase):
     def __init__(self, transform, not_aug_transform, class_mapping, class_traps) -> None:
         self.subset_name = 'train'
         self.not_aug_transform = not_aug_transform
@@ -40,7 +40,7 @@ class TrainIWilds(WildsDatasetBase):
         return img, label, not_aug_img
 
 
-class TestIWilds(WildsDatasetBase):
+class TestIWildCam(WildsDatasetBase):
     def __init__(self, transform, class_mapping, class_traps, use_validation=False) -> None:
         self.subset_name = 'val' if use_validation else 'test'
         super().__init__(transform, class_mapping, class_traps)
@@ -62,8 +62,8 @@ class TestIWilds(WildsDatasetBase):
         return img, label
 
 
-class SequentialIWilds(ContinualDataset):
-    NAME = 'seq-iwilds'
+class SequentialIWildCam(ContinualDataset):
+    NAME = 'seq-iwildcam'
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 5
     N_TASKS = 8
@@ -112,19 +112,19 @@ class SequentialIWilds(ContinualDataset):
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
         if train:
-            return TrainIWilds(self.TRANSFORM, self.NOT_AUG_TRANSFORM, self.class_mapping, self.class_traps)
+            return TrainIWildCam(self.TRANSFORM, self.NOT_AUG_TRANSFORM, self.class_mapping, self.class_traps)
         else:
-            return TestIWilds(self.TEST_TRANSFORM, self.class_mapping, self.class_traps, use_validation=self.args.validation)
+            return TestIWildCam(self.TEST_TRANSFORM, self.class_mapping, self.class_traps, use_validation=self.args.validation)
 
     @staticmethod
     def get_transform():
         transform = transforms.Compose(
-            [transforms.ToPILImage(), SequentialIWilds.TRANSFORM])
+            [transforms.ToPILImage(), SequentialIWildCam.TRANSFORM])
         return transform
 
     def get_backbone(self):
         net = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-        n_classes = SequentialIWilds.N_CLASSES_PER_TASK * SequentialIWilds.N_TASKS
+        n_classes = SequentialIWildCam.N_CLASSES_PER_TASK * SequentialIWildCam.N_TASKS
         net.fc = nn.Linear(net.fc.weight.shape[1], self.n_classes)
         return net
 
@@ -156,4 +156,4 @@ class SequentialIWilds(ContinualDataset):
 
     @staticmethod
     def get_minibatch_size():
-        return SequentialIWilds.get_batch_size()
+        return SequentialIWildCam.get_batch_size()
