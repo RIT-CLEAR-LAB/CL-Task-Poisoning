@@ -97,12 +97,14 @@ class StreamSpecification:
                 while label in task_classes:
                     label = random_state.choice(classes_pool, replace=False)
                 task_classes.append(label)
+                classes_pool.remove(label)
+                if all(l in set(task_classes) for l in classes_pool):
+                    break
             task_classes.remove(None)
 
             self._new_classes.append([])
             self._drifted_classes.append([])
             for c in task_classes:
-                classes_pool.remove(c)
                 if c not in used_classes:
                     self._new_classes[-1].append(c)
                     used_classes.add(c)
@@ -149,8 +151,11 @@ class StreamSpecification:
 
     @property
     def max_drifts_per_class(self):
+        if len(self._drifted_classes) == 0:
+            print('max_drifts_per_class call: no drifts in current setup')
+            return 0
         counter = collections.Counter()
-        for classes in self.drifted_classes:
+        for classes in self._drifted_classes:
             counter.update(classes)
         max_occurence = counter.most_common(1)[0][1]
         return max_occurence

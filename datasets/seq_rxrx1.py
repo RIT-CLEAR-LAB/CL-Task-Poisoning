@@ -1,3 +1,4 @@
+
 from PIL import Image
 from typing import Tuple
 
@@ -7,32 +8,35 @@ import torch.nn.functional as F
 import torch.utils
 import torch.utils.data
 import torchvision.transforms as transforms
+import numpy as np
+import pathlib
 import collections
 
+from torchvision.models import resnet18, ResNet18_Weights
 from wilds import get_dataset
+
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from torchvision.models import resnet18, ResNet18_Weights
 from datasets.utils.wilds import WildsDatasetBase, get_valid_classes, get_class_details
 
 
-class TrainIWildCam(WildsDatasetBase):
+class TrainRxRx1(WildsDatasetBase):
     def __init__(self, transform, not_aug_transform, class_mapping, class_traps) -> None:
         self.subset_name = 'train'
         self.not_aug_transform = not_aug_transform
         super().__init__(transform, class_mapping, class_traps)
 
     def set_orignal_data(self):
-        dataset = get_dataset(dataset="iwildcam", download=True).get_subset(self.subset_name)
-        self.data_dir = dataset.dataset.data_dir
+        dataset = get_dataset(dataset="rxrx1", download=True).get_subset(self.subset_name)
+        self.data_dir = pathlib.Path(dataset.dataset.data_dir)
         self.input_array = dataset.dataset._input_array[dataset.indices]
         self.y_array = dataset.y_array
         self.metadata_array = dataset.metadata_array
         assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
-        img_path = self.data_dir / 'train' / self.input_array[index]
-        not_aug_img = Image.open(img_path)
+        img_path = self.data_dir / self.input_array[index]
+        not_aug_img = Image.open(img_path).convert('RGB')
         label = self.y_array[index]
 
         img = self.transforms(not_aug_img)
@@ -40,33 +44,33 @@ class TrainIWildCam(WildsDatasetBase):
         return img, label, not_aug_img
 
 
-class TestIWildCam(WildsDatasetBase):
+class TestRxRx1(WildsDatasetBase):
     def __init__(self, transform, class_mapping, class_traps, use_validation=False) -> None:
         self.subset_name = 'val' if use_validation else 'test'
         super().__init__(transform, class_mapping, class_traps)
 
     def set_orignal_data(self):
-        dataset = get_dataset(dataset="iwildcam", download=True).get_subset(self.subset_name)
-        self.data_dir = dataset.dataset.data_dir
+        dataset = get_dataset(dataset="rxrx1", download=True).get_subset(self.subset_name)
+        self.data_dir = pathlib.Path(dataset.dataset.data_dir)
         self.input_array = dataset.dataset._input_array[dataset.indices]
         self.y_array = dataset.y_array
         self.metadata_array = dataset.metadata_array
         assert len(self.input_array) == len(self.y_array) == len(self.metadata_array)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
-        img_path = self.data_dir / 'train' / self.input_array[index]
-        not_aug_img = Image.open(img_path)
+        img_path = self.data_dir / self.input_array[index]
+        not_aug_img = Image.open(img_path).convert('RGB')
         label = self.y_array[index]
 
         img = self.transforms(not_aug_img)
         return img, label
 
 
-class SequentialIWildCam(ContinualDataset):
-    NAME = 'seq-iwildcam'
+class SequentialRxRx1(ContinualDataset):
+    NAME = 'seq-rxrx1'
     SETTING = 'class-il'
-    N_CLASSES_PER_TASK = 5
-    N_TASKS = 8
+    N_CLASSES_PER_TASK = 100
+    N_TASKS = 11
     TRANSFORM = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomCrop(224, padding=4),
@@ -84,10 +88,19 @@ class SequentialIWildCam(ContinualDataset):
         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
     ])
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, class_index=0, **kwargs):
+        """ Continual benchmark based on RxRx1 driving dataset
+        Args:
+            class_index - index of label used for benchmark construction
+                avaliable one of 9 categories: bicycle, bus, car, motorcycle, pedestrian, rider',
+                  'traffic light, traffic sign, truck
+        """
         super().__init__(*args, **kwargs)
         n_groups = self.stream_spec.max_drifts_per_class + 1
-        valid_classes = sorted(get_valid_classes('iwildcam', min_domains=n_groups))
+        valid_classes = sorted(get_valid_classes('rxrx1', min_samples=100, min_domains=n_groups))
+        # print(valid_classes)
+        # print(len(valid_classes))
+        # exit()
         self.n_classes = len(valid_classes)
         self.class_mapping = {i: j for i, j in zip(valid_classes, range(len(valid_classes)))}
 
@@ -95,7 +108,7 @@ class SequentialIWildCam(ContinualDataset):
         if self.args.n_slots is not None:
             assert n_classes * n_groups >= self.N_TASKS * self.args.n_slots, f'not enough classes to fill all slots, n_groups = {n_groups}, n_slots={self.args.n_slots}'
 
-        class_traps_ids, _ = get_class_details('iwildcam')
+        class_traps_ids, _ = get_class_details('rxrx1')
 
         self.class_traps = [collections.defaultdict(list) for _ in range(n_groups)]
 
@@ -112,19 +125,18 @@ class SequentialIWildCam(ContinualDataset):
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
         if train:
-            return TrainIWildCam(self.TRANSFORM, self.NOT_AUG_TRANSFORM, self.class_mapping, self.class_traps)
+            return TrainRxRx1(self.TRANSFORM, self.NOT_AUG_TRANSFORM, self.class_mapping, self.class_traps)
         else:
-            return TestIWildCam(self.TEST_TRANSFORM, self.class_mapping, self.class_traps, use_validation=self.args.validation)
+            return TestRxRx1(self.TEST_TRANSFORM, self.class_mapping, self.class_traps, use_validation=self.args.validation)
 
     @staticmethod
     def get_transform():
         transform = transforms.Compose(
-            [transforms.ToPILImage(), SequentialIWildCam.TRANSFORM])
+            [transforms.ToPILImage(), SequentialRxRx1.TRANSFORM])
         return transform
 
     def get_backbone(self):
         net = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-        n_classes = SequentialIWildCam.N_CLASSES_PER_TASK * SequentialIWildCam.N_TASKS
         net.fc = nn.Linear(net.fc.weight.shape[1], self.n_classes)
         return net
 
@@ -156,4 +168,4 @@ class SequentialIWildCam(ContinualDataset):
 
     @staticmethod
     def get_minibatch_size():
-        return SequentialIWildCam.get_batch_size()
+        return SequentialRxRx1.get_batch_size()
