@@ -36,7 +36,8 @@ class DefocusBlur():
             channels.append(cv2.filter2D(x[:, :, d], -1, kernel))
         channels = np.array(channels).transpose((1, 2, 0))  # 3x32x32 -> 32x32x3
 
-        return np.clip(channels, 0, 1).astype(np.uint8)
+        x = np.clip(channels, 0, 1) * 255.
+        return x.astype(np.uint8)
 
 
 class GaussianNoise():
@@ -51,7 +52,8 @@ class GaussianNoise():
         c = [.08, .12, 0.18, 0.26, 0.38][severity - 1]
 
         x = np.array(x) / 255.
-        x = np.clip(x + np.random.normal(size=x.shape, scale=c), 0, 1).astype(np.uint8)
+        x = np.clip(x + np.random.normal(size=x.shape, scale=c), 0, 1) * 255.
+        x = x.astype(np.uint8)
         return x
 
 
@@ -67,7 +69,8 @@ class ShotNoise():
         c = [500, 250, 100, 75, 50][severity - 1]
 
         x = np.array(x) / 255.
-        return np.clip(np.random.poisson(x * c) / c, 0, 1).astype(np.uint8)
+        x = np.clip(np.random.poisson(x * c) / c, 0, 1) * 255.
+        return x.astype(np.uint8)
 
 
 class SpeckleNoise():
@@ -82,7 +85,8 @@ class SpeckleNoise():
         c = [.06, .1, .12, .16, .2][severity - 1]
 
         x = np.array(x) / 255.
-        return np.clip(x + x * np.random.normal(size=x.shape, scale=c), 0, 1).astype(np.uint8)
+        x = np.clip(x + x * np.random.normal(size=x.shape, scale=c), 0, 1) * 255.
+        return x.astype(np.uint8)
 
 
 class Identity:
@@ -90,6 +94,6 @@ class Identity:
         pass
 
     def __call__(self, x):
-        x = np.array(x) / 255.
+        x = np.array(x)
         x = x.astype(np.uint8)
         return x
