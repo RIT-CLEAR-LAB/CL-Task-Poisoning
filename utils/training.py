@@ -126,7 +126,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             if dataset.SETTING == 'class-il':
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
         if args.buffer_flushing == 1:
-            detect_uncertainty_drift(dataset.drifting_classes, train_loader, model)
+            detect_uncertainty_drift(dataset, train_loader, model)
         scheduler = dataset.get_scheduler(model, args)
         for epoch in range(model.args.n_epochs):
             if args.model == 'joint':

@@ -65,9 +65,13 @@ def initialize_uncertainty_detector(ref_data, device):
     return cd
 
 
-def detect_uncertainty_drift(drifting_classes, train_loader, model):
+def detect_uncertainty_drift(dataset, train_loader, model):
+    drifting_classes = dataset.drifting_classes
     if len(drifting_classes) == 0:
         return
+
+    if dataset.HAS_LABEL_DRIFT:
+        drifting_classes = dataset.METACLASSES
 
     labels = ['No!', 'Yes!']
 

@@ -127,6 +127,8 @@ class SequentialFashionMNIST(ContinualDataset):
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 2
     N_TASKS = 5
+    HAS_LABEL_DRIFT = True
+    METACLASSES = [0, 1]
 
     TRANSFORM = transforms.Compose([
         # transforms.ToPILImage(),

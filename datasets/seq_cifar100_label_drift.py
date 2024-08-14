@@ -148,6 +148,8 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
     SETTING = "class-il"
     N_CLASSES_PER_TASK = 5
     N_TASKS = 20
+    HAS_LABEL_DRIFT = True
+    METACLASSES = [0, 1]
 
     TRANSFORM = transforms.Compose(
         [
