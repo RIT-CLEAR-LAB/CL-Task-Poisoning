@@ -2,7 +2,7 @@ from typing import Tuple
 import torch.nn.functional as F
 import torch.optim
 import torchvision.transforms as transforms
-from backbone.ResNet18 import resnet18, conv3x3
+from backbone.ResNet18 import resnet18
 from PIL import Image
 from torchvision.datasets import CIFAR100
 import numpy as np
@@ -17,16 +17,16 @@ from datasets.utils.cifar100_label_mapping import (
 
 
 class TrainCIFAR100LabelDrift(MammothDataset, CIFAR100):
-    def __init__(self, root, transform, target_transform, not_aug_transform):
+    def __init__(self, root, transform, superclass_mapping, metaclass_mapping, not_aug_transform):
         super().__init__(
             root,
             train=True,
             transform=transform,
-            target_transform=target_transform,
+            target_transform=None,
             download=True,
         )
-        self.superclass_mapping = target_transform.superclass_mapping
-        self.metaclass_mapping = target_transform.metaclass_mapping
+        self.superclass_mapping = superclass_mapping
+        self.metaclass_mapping = metaclass_mapping
         self.not_aug_transform = not_aug_transform
         self.classes = list(range(100))
 
@@ -83,17 +83,17 @@ class TrainCIFAR100LabelDrift(MammothDataset, CIFAR100):
 class TestCIFAR100LabelDrift(MammothDataset, CIFAR100):
     """Workaround to avoid printing the already downloaded messages."""
 
-    def __init__(self, root, transform, target_transform):
+    def __init__(self, root, transform, superclass_mapping, metaclass_mapping):
         self.root = root
         super().__init__(
             root,
             train=False,
             transform=transform,
-            target_transform=target_transform,
+            target_transform=None,
             download=not self._check_integrity(),
         )
-        self.superclass_mapping = target_transform.superclass_mapping
-        self.metaclass_mapping = target_transform.metaclass_mapping
+        self.superclass_mapping = superclass_mapping
+        self.metaclass_mapping = metaclass_mapping
         self.classes = list(range(100))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
@@ -141,12 +141,6 @@ class TestCIFAR100LabelDrift(MammothDataset, CIFAR100):
         pass
 
 
-class TargetTransform:
-    def __init__(self, superclass_mapping, metaclass_mapping):
-        self.superclass_mapping = superclass_mapping
-        self.metaclass_mapping = metaclass_mapping
-
-
 class SequentialCIFAR100LabelDrift(ContinualDataset):
 
     NAME = "seq-cifar100-label-drift"
@@ -164,10 +158,6 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
 
     NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
 
-    TARGET_TRANSFORM = TargetTransform(
-        superclass_target_mapping, metaclass_target_mapping
-    )
-
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
 
@@ -175,14 +165,16 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
             return TrainCIFAR100LabelDrift(
                 base_path() + "CIFAR100LabelDrift",
                 transform=self.TRANSFORM,
-                target_transform=self.TARGET_TRANSFORM,
+                superclass_mapping=superclass_target_mapping,
+                metaclass_mapping=metaclass_target_mapping,
                 not_aug_transform=self.NO_AUG_TRANSFORM,
             )
         else:
             return TestCIFAR100LabelDrift(
                 base_path() + "CIFAR100LabelDrift",
                 transform=self.NO_AUG_TRANSFORM,
-                target_transform=self.TARGET_TRANSFORM,
+                superclass_mapping=superclass_target_mapping,
+                metaclass_mapping=metaclass_target_mapping,
             )
 
     def get_transform(self):
@@ -192,7 +184,6 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
     @staticmethod
     def get_backbone():
         backbone = resnet18(nclasses=2)
-        backbone.conv1 = conv3x3(3, backbone.nf)
         return backbone
 
     @staticmethod
