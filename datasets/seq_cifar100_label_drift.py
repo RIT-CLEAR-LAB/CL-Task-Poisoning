@@ -1,3 +1,4 @@
+import copy
 from typing import Tuple
 import torch.nn.functional as F
 import torch.optim
@@ -165,16 +166,16 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
             return TrainCIFAR100LabelDrift(
                 base_path() + "CIFAR100LabelDrift",
                 transform=self.TRANSFORM,
-                superclass_mapping=superclass_target_mapping,
-                metaclass_mapping=metaclass_target_mapping,
+                superclass_mapping=copy.deepcopy(superclass_target_mapping),
+                metaclass_mapping=copy.deepcopy(metaclass_target_mapping),
                 not_aug_transform=self.NO_AUG_TRANSFORM,
             )
         else:
             return TestCIFAR100LabelDrift(
                 base_path() + "CIFAR100LabelDrift",
                 transform=self.NO_AUG_TRANSFORM,
-                superclass_mapping=superclass_target_mapping,
-                metaclass_mapping=metaclass_target_mapping,
+                superclass_mapping=copy.deepcopy(superclass_target_mapping),
+                metaclass_mapping=copy.deepcopy(metaclass_target_mapping),
             )
 
     def get_transform(self):
