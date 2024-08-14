@@ -102,7 +102,7 @@ class ContinualDataset:
                     prev_test_data.apply_drift(drifted_classes)
                 self.test_loaders[t] = DataLoader(prev_test_data, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
 
-            self.drifting_classes = drifted_classes
+        self.drifting_classes = drifted_classes
 
         test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
 
