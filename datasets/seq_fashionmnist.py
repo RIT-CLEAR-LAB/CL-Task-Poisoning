@@ -3,7 +3,7 @@ from typing import Tuple
 from PIL import Image
 
 import torchvision.transforms as transforms
-from backbone.ResNet18 import resnet18, conv3x3
+from backbone.ResNet18 import resnet18
 from torchvision.datasets import FashionMNIST
 import numpy as np
 import torch.optim
@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from datasets.utils.continual_dataset import ContinualDataset
 from utils.conf import base_path_dataset as base_path
 from datasets.mammoth_dataset import MammothDataset
+from datasets.transforms.to_thre_channels import ToThreeChannels
 
 
 class TrainFashionMNIST(MammothDataset, FashionMNIST):
@@ -133,11 +134,18 @@ class SequentialFashionMNIST(ContinualDataset):
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
+        ToThreeChannels(),
     ])
 
     TEST_TRANSFORM = transforms.Compose([
         transforms.Resize(32),
         transforms.ToTensor(),
+        ToThreeChannels(),
+    ])
+
+    NO_AUG = transforms.Compose([
+        transforms.ToTensor(),
+        ToThreeChannels(),
     ])
 
     def __init__(self, *args, **kwargs):
@@ -150,7 +158,7 @@ class SequentialFashionMNIST(ContinualDataset):
     def get_dataset(self, train=True):
         if train:
             return TrainFashionMNIST(base_path() + 'FASHIONMNIST', transform=self.TRANSFORM, target_transform=self.metaclass_mapping,
-                                     not_aug_transform=transforms.Compose([transforms.ToTensor()]), download=True)
+                                     not_aug_transform=self.NO_AUG, download=True)
         else:
             return TestFashionMNIST(base_path() + 'FASHIONMNIST', transform=self.TEST_TRANSFORM, target_transform=self.metaclass_mapping,
                                     download=True)
@@ -161,7 +169,6 @@ class SequentialFashionMNIST(ContinualDataset):
     @staticmethod
     def get_backbone():
         backbone = resnet18(nclasses=2)
-        backbone.conv1 = conv3x3(1, backbone.nf)
         return backbone
 
     @staticmethod
