@@ -69,7 +69,7 @@ class RPC(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform):
         super(RPC, self).__init__(backbone, loss, args, transform)
-        self.buffer = Buffer(self.args.buffer_size, self.device)
+        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
         self.cpt = get_dataset(args).N_CLASSES_PER_TASK
         self.tasks = get_dataset(args).N_TASKS
         self.task = 0

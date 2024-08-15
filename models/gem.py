@@ -100,7 +100,7 @@ class Gem(ContinualModel):
     def __init__(self, backbone, loss, args, transform):
         super(Gem, self).__init__(backbone, loss, args, transform)
         self.current_task = 0
-        self.buffer = Buffer(self.args.buffer_size, self.device)
+        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
 
         # Allocate temporary synaptic memory
         self.grad_dims = []

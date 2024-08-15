@@ -27,7 +27,7 @@ class Fdr(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform):
         super(Fdr, self).__init__(backbone, loss, args, transform)
-        self.buffer = Buffer(self.args.buffer_size, self.device)
+        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
         self.current_task = 0
         self.i = 0
         self.soft = torch.nn.Softmax(dim=1)

@@ -22,7 +22,8 @@ from datasets.mammoth_dataset import MammothDataset
 
 class TrainCIFAR100(MammothDataset, CIFAR100):
     def __init__(self, root: str, transform, not_aug_transform, train_drift, drift_transform) -> None:
-        super().__init__(root, train=True, transform=transform, target_transform=None, download=True)
+        self.root = root    # Workaround to avoid printing the already downloaded messages
+        super().__init__(root, train=True, transform=transform, target_transform=None, download=not self._check_integrity())
         self.not_aug_transform = not_aug_transform
         self.train_drift = train_drift
         self.drift_transform = drift_transform

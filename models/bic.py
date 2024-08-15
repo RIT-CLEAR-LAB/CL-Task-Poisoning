@@ -51,7 +51,7 @@ class BiC(ContinualModel):
         self.n_tasks = dd.N_TASKS
         self.cpt = dd.N_CLASSES_PER_TASK
         self.transform = transform
-        self.buffer = Buffer(self.args.buffer_size, self.device)
+        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
 
         self.task = 0
         self.lamda = 0
