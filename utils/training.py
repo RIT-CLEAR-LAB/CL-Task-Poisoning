@@ -13,7 +13,7 @@ import torch
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
-from drift_detection import detect_uncertainty_drift
+from drift_detection import detect_uncertainty_drift, detect_uncertainty_label_drift
 from utils.loggers import *
 from utils.status import ProgressBar
 
@@ -54,7 +54,10 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
         correct, correct_mask_classes, total = 0.0, 0.0, 0.0
         for data in test_loader:
             with torch.no_grad():
-                inputs, labels = data
+                if dataset.HAS_LABEL_DRIFT:
+                    inputs, labels, _ = data
+                else:
+                    inputs, labels = data
                 inputs, labels = inputs.to(model.device), labels.to(model.device)
                 if 'class-il' not in model.COMPATIBILITY:
                     outputs = model(inputs, k)
@@ -126,7 +129,10 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             if dataset.SETTING == 'class-il':
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
         if args.buffer_flushing == 1:
-            detect_uncertainty_drift(dataset, train_loader, model)
+            if dataset.HAS_LABEL_DRIFT:
+                detect_uncertainty_label_drift(dataset, train_loader, model)
+            else:
+                detect_uncertainty_drift(dataset, train_loader, model)
         scheduler = dataset.get_scheduler(model, args)
         for epoch in range(model.args.n_epochs):
             if args.model == 'joint':
@@ -135,14 +141,20 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 if args.debug_mode and i > 3:
                     break
                 if hasattr(dataset.train_loader.dataset, 'logits'):
-                    inputs, labels, not_aug_inputs, logits = data
+                    if dataset.HAS_LABEL_DRIFT:
+                        inputs, labels, not_aug_inputs, _, logits = data
+                    else:
+                        inputs, labels, not_aug_inputs, logits = data
                     inputs = inputs.to(model.device)
                     labels = labels.to(model.device)
                     not_aug_inputs = not_aug_inputs.to(model.device)
                     logits = logits.to(model.device)
                     loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
                 else:
-                    inputs, labels, not_aug_inputs = data
+                    if dataset.HAS_LABEL_DRIFT:
+                        inputs, labels, not_aug_inputs, _ = data
+                    else:
+                        inputs, labels, not_aug_inputs = data
                     inputs, labels = inputs.to(model.device), labels.to(
                         model.device)
                     not_aug_inputs = not_aug_inputs.to(model.device)

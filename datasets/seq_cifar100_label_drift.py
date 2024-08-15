@@ -42,15 +42,16 @@ class TrainCIFAR100LabelDrift(MammothDataset, CIFAR100):
         # to return a PIL Image
         img = Image.fromarray(img, mode="RGB")
         original_image = img.copy()
+        original_target = target.copy()
         not_aug_img = self.not_aug_transform(original_image)
         img = self.transform(img)
         target = self.superclass_mapping[target]
         target = self.metaclass_mapping[target]
 
         if hasattr(self, "logits"):
-            return img, target, not_aug_img, self.logits[index]
+            return img, target, not_aug_img, original_target, self.logits[index]
 
-        return img, target, not_aug_img
+        return img, target, not_aug_img, original_target
 
     def select_classes(self, classes_list: list[int]):
         if len(classes_list) == 0:
@@ -108,10 +109,11 @@ class TestCIFAR100LabelDrift(MammothDataset, CIFAR100):
         # to return a PIL Image
         img = Image.fromarray(img)
         img = self.transform(img)
+        original_target = target.copy()
         target = self.superclass_mapping[target]
         target = self.metaclass_mapping[target]
 
-        return img, target
+        return img, target, original_target
 
     def select_classes(self, classes_list: list[int]):
         if len(classes_list) == 0:

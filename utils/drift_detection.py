@@ -70,9 +70,6 @@ def detect_uncertainty_drift(dataset, train_loader, model):
     if len(drifting_classes) == 0:
         return
 
-    if dataset.HAS_LABEL_DRIFT:
-        drifting_classes = dataset.METACLASSES
-
     labels = ['No!', 'Yes!']
 
     for cls in drifting_classes:
@@ -94,3 +91,31 @@ def detect_uncertainty_drift(dataset, train_loader, model):
 
                 if preds['data']['is_drift']:       # removing drifted samples from buffer
                     model.buffer.flush_class(cls)
+
+def detect_uncertainty_label_drift(dataset, train_loader, model):
+    drifting_classes = dataset.drifting_classes
+    if len(drifting_classes) == 0:
+        return
+
+    labels = ['No!', 'Yes!']
+
+    for cls in drifting_classes:
+        filtered_images = []
+        for img_batch, _, _, original_target_batch in train_loader:
+            mask = original_target_batch == cls
+            selected_images = img_batch[mask]
+            filtered_images.append(selected_images)
+
+        new_images = torch.cat(filtered_images, dim=0)
+
+    if new_images.size(0) > 0 and hasattr(model, 'buffer'):
+        for meta_cls in dataset.METACLASSES:
+            ref_samples = model.buffer.get_class_data(meta_cls)
+            if not isinstance(ref_samples, int):
+                drift_detector = initialize_uncertainty_detector(ref_samples, model.device)
+                preds = drift_detector.predict(new_images)
+                print(f"Drift in class {meta_cls}? {labels[preds['data']['is_drift']]}")
+                print(f"Feature-wise p-values: {', '.join([f'{p_val:.3f}' for p_val in preds['data']['p_val']])}")
+
+                if preds['data']['is_drift']:       # removing drifted samples from buffer
+                    model.buffer.flush_class(meta_cls)
