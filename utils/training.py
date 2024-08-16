@@ -54,10 +54,7 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
         correct, correct_mask_classes, total = 0.0, 0.0, 0.0
         for data in test_loader:
             with torch.no_grad():
-                if dataset.HAS_LABEL_DRIFT:
-                    inputs, labels, _ = data
-                else:
-                    inputs, labels = data
+                inputs, labels = data[0], data[1]
                 inputs, labels = inputs.to(model.device), labels.to(model.device)
                 if 'class-il' not in model.COMPATIBILITY:
                     outputs = model(inputs, k)
@@ -141,24 +138,26 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 if args.debug_mode and i > 3:
                     break
                 if hasattr(dataset.train_loader.dataset, 'logits'):
-                    if dataset.HAS_LABEL_DRIFT:
-                        inputs, labels, not_aug_inputs, _, logits = data
-                    else:
-                        inputs, labels, not_aug_inputs, logits = data
+                    inputs, labels, not_aug_inputs, logits = data[0], data[1], data[2], data[-1]
                     inputs = inputs.to(model.device)
                     labels = labels.to(model.device)
                     not_aug_inputs = not_aug_inputs.to(model.device)
                     logits = logits.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
-                else:
                     if dataset.HAS_LABEL_DRIFT:
-                        inputs, labels, not_aug_inputs, _ = data
-                    else:
-                        inputs, labels, not_aug_inputs = data
-                    inputs, labels = inputs.to(model.device), labels.to(
-                        model.device)
+                        original_targets = data[3]
+                        original_targets = original_targets.to(model.device)
+                        loss = model.meta_observe(inputs, labels, not_aug_inputs, logits, original_targets)
+                    else: loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
+                else:
+                    inputs, labels, not_aug_inputs = data[0], data[1], data[2]
+                    inputs = inputs.to(model.device)
+                    labels = labels.to(model.device)
                     not_aug_inputs = not_aug_inputs.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs)
+                    if dataset.HAS_LABEL_DRIFT:
+                        original_targets = data[3]
+                        original_targets = original_targets.to(model.device)
+                        loss = model.meta_observe(inputs, labels, not_aug_inputs, original_targets)
+                    else: loss = model.meta_observe(inputs, labels, not_aug_inputs)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
