@@ -26,7 +26,7 @@ class ErACE(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform):
         super(ErACE, self).__init__(backbone, loss, args, transform)
-        self.buffer = Buffer(self.args.buffer_size, self.device)
+        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
         self.seen_so_far = torch.tensor([]).long().to(self.device)
         self.num_classes = get_dataset(args).N_TASKS * get_dataset(args).N_CLASSES_PER_TASK
         self.task = 0

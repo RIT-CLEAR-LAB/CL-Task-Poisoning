@@ -19,12 +19,13 @@ from datasets.utils.cifar100_label_mapping import (
 
 class TrainCIFAR100LabelDrift(MammothDataset, CIFAR100):
     def __init__(self, root, transform, superclass_mapping, metaclass_mapping, not_aug_transform):
+        self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(
             root,
             train=True,
             transform=transform,
             target_transform=None,
-            download=True,
+            download=not self._check_integrity(),
         )
         self.superclass_mapping = superclass_mapping
         self.metaclass_mapping = metaclass_mapping

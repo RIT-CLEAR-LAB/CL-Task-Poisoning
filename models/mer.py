@@ -38,7 +38,7 @@ class Mer(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform):
         super(Mer, self).__init__(backbone, loss, args, transform)
-        self.buffer = Buffer(self.args.buffer_size, self.device)
+        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
         assert args.batch_size == 1, 'Mer only works with batch_size=1'
 
     def draw_batches(self, inp, lab):
