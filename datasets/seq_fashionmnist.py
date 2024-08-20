@@ -150,10 +150,7 @@ class SequentialFashionMNIST(ContinualDataset):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        metaclasses = [0] * 5 + [1] * 5
-        random_state = np.random.RandomState(self.args.seed)
-        random_state.shuffle(metaclasses)
-        self.metaclass_mapping = {c: mc for c, mc in zip(range(10), metaclasses)}
+        self.metaclass_mapping = {c: mc for c, mc in zip(range(10), [0, 1, 0, 1, 0, 1, 0, 1, 0, 1])}
 
     def get_dataset(self, train=True):
         if train:
