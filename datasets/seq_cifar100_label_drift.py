@@ -151,7 +151,6 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
     N_CLASSES_PER_TASK = 5
     N_TASKS = 20
     HAS_LABEL_DRIFT = True
-    METACLASSES = [0, 1]
 
     TRANSFORM = transforms.Compose(
         [
@@ -188,8 +187,7 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        backbone = resnet18(nclasses=2)
-        return backbone
+        return resnet18(nclasses=2)
 
     @staticmethod
     def get_loss():

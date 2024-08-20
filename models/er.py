@@ -27,14 +27,14 @@ class Er(ContinualModel):
         super(Er, self).__init__(backbone, loss, args, transform)
         self.buffer = Buffer(self.args.buffer_size, self.device)
 
-    def observe(self, inputs, labels, not_aug_inputs):
+    def observe(self, inputs, labels, not_aug_inputs, original_targets=None):
 
         real_batch_size = inputs.shape[0]
 
         self.opt.zero_grad()
         if not self.buffer.is_empty():
-            buf_inputs, buf_labels = self.buffer.get_data(
-                self.args.minibatch_size, transform=self.transform)
+            buf_data = self.buffer.get_data(self.args.minibatch_size, transform=self.transform)
+            buf_inputs, buf_labels = buf_data[0], buf_data[1]
             inputs = torch.cat((inputs, buf_inputs))
             labels = torch.cat((labels, buf_labels))
 
@@ -43,7 +43,13 @@ class Er(ContinualModel):
         loss.backward()
         self.opt.step()
 
-        self.buffer.add_data(examples=not_aug_inputs,
-                             labels=labels[:real_batch_size])
+        if original_targets is not None:
+            original_targets = original_targets[:real_batch_size]
+
+        self.buffer.add_data(
+            examples=not_aug_inputs,
+            labels=labels[:real_batch_size],
+            original_labels=original_targets,
+        )
 
         return loss.item()
