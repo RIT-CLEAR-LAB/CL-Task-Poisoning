@@ -33,12 +33,8 @@ class Er(ContinualModel):
 
         self.opt.zero_grad()
         if not self.buffer.is_empty():
-            if original_targets is not None:
-                buf_inputs, buf_labels, _ = self.buffer.get_data(
-                    self.args.minibatch_size, transform=self.transform)
-            else:
-                buf_inputs, buf_labels = self.buffer.get_data(
-                    self.args.minibatch_size, transform=self.transform)
+            buf_data = self.buffer.get_data(self.args.minibatch_size, transform=self.transform)
+            buf_inputs, buf_labels = buf_data[0], buf_data[1]
             inputs = torch.cat((inputs, buf_inputs))
             labels = torch.cat((labels, buf_labels))
 
@@ -48,11 +44,12 @@ class Er(ContinualModel):
         self.opt.step()
 
         if original_targets is not None:
-            self.buffer.add_data(examples=not_aug_inputs,
-                             labels=labels[:real_batch_size],
-                             original_labels=original_targets[:real_batch_size])
-        else: 
-            self.buffer.add_data(examples=not_aug_inputs,
-                             labels=labels[:real_batch_size])
+            original_targets = original_targets[:real_batch_size]
+
+        self.buffer.add_data(
+            examples=not_aug_inputs,
+            labels=labels[:real_batch_size],
+            original_labels=original_targets,
+        )
 
         return loss.item()

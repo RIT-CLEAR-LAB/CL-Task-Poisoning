@@ -258,17 +258,17 @@ class Buffer:
         self.num_seen_examples = 0
         self.current_size = 0
 
-    def get_class_data(self, label: int, metaclass: bool = False) -> torch.Tensor:
+    def get_class_data(self, label: int, labeldrift: bool = False) -> torch.Tensor:
         """
         Return all samples with given label.
         If label not present in the buffer, then raise ValueError exception.
         """
-        if metaclass:
+        if labeldrift:
             idx = torch.argwhere(self.original_labels == label).flatten()
         else:
             idx = torch.argwhere(self.labels == label).flatten()
         if len(idx) == 0:
-            print(f'{"Metaclass" if metaclass else "Class"} label {label} not present in the buffer')
+            print(f'{"Metaclass" if labeldrift else "Class"} label {label} not present in the buffer')
             return 0
         class_samples = self.examples[idx]
         return class_samples
@@ -283,19 +283,19 @@ class Buffer:
         else:
             return 0
 
-    def flush_class(self, label: int, metaclass: bool = False) -> None:
+    def flush_class(self, label: int, labeldrift: bool = False) -> None:
         """
         Removes all samples with given label.
         If label not present in the buffer, then raise ValueError exception.
         """
-        if metaclass:
+        if labeldrift:
             idx = torch.argwhere(self.original_labels != label).flatten()
             num_removed = len(self.original_labels) - len(idx)
         else:
             idx = torch.argwhere(self.labels != label).flatten()
             num_removed = len(self.labels) - len(idx)
         if num_removed == 0:
-            raise ValueError(f'{"Metaclass" if metaclass else "Class"} label {label} not present in the buffer')
+            raise ValueError(f'{"Metaclass" if labeldrift else "Class"} label {label} not present in the buffer')
         for attr_str in self.attributes:
             if hasattr(self, attr_str):
                 tensor = getattr(self, attr_str)
@@ -306,4 +306,4 @@ class Buffer:
                 setattr(self, attr_str, new_tensor)
         self.current_size = max(self.current_size - num_removed, 0)
         self.num_seen_examples -= num_removed
-        print(f'{"Metaclass" if metaclass else "Class"} {label} samples removed: {num_removed}')
+        print(f'{"Metaclass" if labeldrift else "Class"} {label} samples removed: {num_removed}')
