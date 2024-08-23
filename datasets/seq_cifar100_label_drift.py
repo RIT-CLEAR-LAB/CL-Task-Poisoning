@@ -43,15 +43,16 @@ class TrainCIFAR100LabelDrift(MammothDataset, CIFAR100):
         # to return a PIL Image
         img = Image.fromarray(img, mode="RGB")
         original_image = img.copy()
+        original_target = target.copy()
         not_aug_img = self.not_aug_transform(original_image)
         img = self.transform(img)
         target = self.superclass_mapping[target]
         target = self.metaclass_mapping[target]
 
         if hasattr(self, "logits"):
-            return img, target, not_aug_img, self.logits[index]
+            return img, target, not_aug_img, original_target, self.logits[index]
 
-        return img, target, not_aug_img
+        return img, target, not_aug_img, original_target
 
     def select_classes(self, classes_list: list[int]):
         if len(classes_list) == 0:
@@ -109,10 +110,11 @@ class TestCIFAR100LabelDrift(MammothDataset, CIFAR100):
         # to return a PIL Image
         img = Image.fromarray(img)
         img = self.transform(img)
+        original_target = target.copy()
         target = self.superclass_mapping[target]
         target = self.metaclass_mapping[target]
 
-        return img, target
+        return img, target, original_target
 
     def select_classes(self, classes_list: list[int]):
         if len(classes_list) == 0:
@@ -149,6 +151,7 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
     SETTING = "class-il"
     N_CLASSES_PER_TASK = 5
     N_TASKS = 20
+    HAS_LABEL_DRIFT = True
 
     TRANSFORM = transforms.Compose(
         [
@@ -185,8 +188,7 @@ class SequentialCIFAR100LabelDrift(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        backbone = resnet18(nclasses=2)
-        return backbone
+        return resnet18(nclasses=2)
 
     @staticmethod
     def get_loss():

@@ -22,6 +22,7 @@ class ContinualDataset:
     SETTING: str
     N_CLASSES_PER_TASK: int
     N_TASKS: int
+    HAS_LABEL_DRIFT: bool = False
 
     def __init__(self, args: Namespace) -> None:
         """
