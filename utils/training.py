@@ -134,22 +134,20 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             for i, data in enumerate(train_loader):
                 if args.debug_mode and i > 3:
                     break
+
+                inputs, labels, not_aug_inputs = data[0], data[1], data[2]
+                inputs = inputs.to(model.device)
+                labels = labels.to(model.device)
+                not_aug_inputs = not_aug_inputs.to(model.device)
+                original_targets = None
+                if dataset.HAS_LABEL_DRIFT:
+                    original_targets = data[3].to(model.device)
+
                 if hasattr(dataset.train_loader.dataset, 'logits'):
-                    inputs, labels, not_aug_inputs, original_targets, logits = data[0], data[1], data[2], None, data[-1]
-                    inputs = inputs.to(model.device)
-                    labels = labels.to(model.device)
-                    not_aug_inputs = not_aug_inputs.to(model.device)
+                    logits = data[-1]
                     logits = logits.to(model.device)
-                    if dataset.HAS_LABEL_DRIFT:
-                        original_targets = data[3].to(model.device)
                     loss = model.meta_observe(inputs, labels, not_aug_inputs, logits, original_targets)
                 else:
-                    inputs, labels, not_aug_inputs, original_targets = data[0], data[1], data[2], None
-                    inputs = inputs.to(model.device)
-                    labels = labels.to(model.device)
-                    not_aug_inputs = not_aug_inputs.to(model.device)
-                    if dataset.HAS_LABEL_DRIFT:
-                        original_targets = data[3].to(model.device)
                     loss = model.meta_observe(inputs, labels, not_aug_inputs, original_targets)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
