@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import math
+import sklearn.metrics
 import sys
 from argparse import Namespace
 from typing import Tuple
@@ -47,11 +48,14 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
     """
     status = model.net.training
     model.net.eval()
-    accs, accs_mask_classes = [], []
+    accs, accs_mask_classes, f1_scores = [], [], []
     for k, test_loader in enumerate(dataset.test_loaders):
         if last and k < len(dataset.test_loaders) - 1:
             continue
         correct, correct_mask_classes, total = 0.0, 0.0, 0.0
+        predictions = list()
+        all_labels = list()
+
         for data in test_loader:
             with torch.no_grad():
                 inputs, labels = data[0], data[1]
@@ -62,8 +66,12 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
                     outputs = model(inputs)
 
                 _, pred = torch.max(outputs.data, 1)
+
                 correct += torch.sum(pred == labels).item()
                 total += labels.shape[0]
+
+                predictions.append(pred)
+                all_labels.append(labels)
 
                 if dataset.SETTING == 'class-il':
                     mask_classes(outputs, dataset, k)
@@ -73,9 +81,14 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
         accs.append(correct / total * 100
                     if 'class-il' in model.COMPATIBILITY else 0)
         accs_mask_classes.append(correct_mask_classes / total * 100)
+        predictions = torch.cat(predictions, dim=0).cpu().numpy()
+        all_labels = torch.cat(all_labels, dim=0).cpu().numpy()
+
+        f1 = sklearn.metrics.f1_score(all_labels, predictions) * 100.0
+        f1_scores.append(f1)
 
     model.net.train(status)
-    return accs, accs_mask_classes
+    return accs, accs_mask_classes, f1_scores
 
 
 def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> None:
@@ -93,7 +106,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         args.wandb_url = wandb.run.get_url()
 
     model.net.to(model.device)
-    results, results_mask_classes = [], []
+    results, results_mask_classes, results_f1 = [], [], []
 
     if not args.disable_log:
         logger = Logger(dataset.SETTING, dataset.NAME, model.NAME)
@@ -158,12 +171,15 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         if hasattr(model, 'end_task'):
             model.end_task(dataset)
 
-        accs = evaluate(model, dataset)
+        metrics = evaluate(model, dataset)
+        accs = metrics[:2]
         results.append(accs[0])
         results_mask_classes.append(accs[1])
+        results_f1.append(metrics[2])
 
         mean_acc = np.mean(accs, axis=1)
-        print_mean_accuracy(mean_acc, t + 1, dataset.SETTING)
+        mean_f1_scores = np.mean(metrics[2])
+        print_mean_accuracy(mean_acc, mean_f1_scores, t + 1, dataset.SETTING)
 
         if not args.disable_log:
             logger.log(mean_acc)
@@ -178,7 +194,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
     with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-drift-{args.concept_drift}-task-accuracies.json",
               'w') as jsonfile:
-        json.dump({'task_accuracies': results}, jsonfile)
+        json.dump({'task_accuracies': results, 'task_f1': results_f1}, jsonfile)
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)
