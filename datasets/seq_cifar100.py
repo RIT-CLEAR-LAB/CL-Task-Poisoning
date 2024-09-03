@@ -150,7 +150,15 @@ class SequentialCIFAR100(ContinualDataset):
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
     ])
+
+    TEST_TRANSFORM = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+    ])
+
+    NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
 
     DRIFT_TYPES = [
         DefocusBlur,
@@ -172,15 +180,13 @@ class SequentialCIFAR100(ContinualDataset):
             transforms.ToPILImage()
         ])
 
-        NO_AUG = transforms.Compose([
-            transforms.ToTensor(),
-        ])
+
         if train:
             return TrainCIFAR100(base_path() + 'CIFAR100',
-                                 transform=self.TRANSFORM, not_aug_transform=NO_AUG, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
+                                 transform=self.TRANSFORM, not_aug_transform=self.NO_AUG_TRANSFORM, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
         else:
             return TestCIFAR100(base_path() + 'CIFAR100',
-                                transform=NO_AUG, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
+                                transform=self.TEST_TRANSFORM, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
 
     def get_transform(self):
         transform = transforms.Compose(
