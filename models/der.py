@@ -29,7 +29,7 @@ class Der(ContinualModel):
         super(Der, self).__init__(backbone, loss, args, transform)
         self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
 
-    def observe(self, inputs, labels, not_aug_inputs):
+    def observe(self, inputs, labels, not_aug_inputs, original_targets=None):
 
         self.opt.zero_grad()
 
@@ -37,13 +37,13 @@ class Der(ContinualModel):
         loss = self.loss(outputs, labels)
 
         if not self.buffer.is_empty():
-            buf_inputs, buf_logits = self.buffer.get_data(
-                self.args.minibatch_size, transform=self.transform)
+            buf_data = self.buffer.get_data(self.args.minibatch_size, transform=self.transform)
+            buf_inputs, buf_logits = buf_data[0], buf_data[1]
             buf_outputs = self.net(buf_inputs)
             loss += self.args.alpha * F.mse_loss(buf_outputs, buf_logits)
 
         loss.backward()
         self.opt.step()
-        self.buffer.add_data(examples=not_aug_inputs, logits=outputs.data)
+        self.buffer.add_data(examples=not_aug_inputs, logits=outputs.data, original_labels=original_targets)
 
         return loss.item()
