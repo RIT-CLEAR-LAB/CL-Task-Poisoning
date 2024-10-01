@@ -18,7 +18,7 @@ useless_args = ['dataset', 'tensorboard', 'validation', 'model',
                 'csv_log', 'notes', 'load_best_args']
 
 
-def print_mean_accuracy(mean_acc: np.ndarray, mean_f1_scores: float, task_number: int,
+def print_mean_accuracy(mean_acc: np.ndarray, task_number: int,
                         setting: str) -> None:
     """
     Prints the mean accuracy on stderr.
@@ -32,11 +32,10 @@ def print_mean_accuracy(mean_acc: np.ndarray, mean_f1_scores: float, task_number
             task_number, round(mean_acc, 2)), file=sys.stderr)
     else:
         mean_acc_class_il, mean_acc_task_il = mean_acc
-        print('\nMetrics for {} task(s): \t [Class-IL Acc]: {} % \t [Task-IL Acc]: {} % \t [Class_IL F1]: {} %\n'.format(
+        print('\nMetrics for {} task(s): \t [Class-IL Acc]: {} % \t [Task-IL Acc]: {} %\n'.format(
             task_number,
             round(mean_acc_class_il, 2),
             round(mean_acc_task_il, 2),
-            round(mean_f1_scores, 2)
         ), file=sys.stderr)
 
 

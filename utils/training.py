@@ -14,7 +14,6 @@ import torch
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
-from drift_detection import detect_uncertainty_drift
 from utils.loggers import *
 from utils.status import ProgressBar
 
@@ -48,7 +47,7 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
     """
     status = model.net.training
     model.net.eval()
-    accs, accs_mask_classes, f1_scores = [], [], []
+    accs, accs_mask_classes = [], []
     for k, test_loader in enumerate(dataset.test_loaders):
         if last and k < len(dataset.test_loaders) - 1:
             continue
@@ -84,11 +83,8 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
         predictions = torch.cat(predictions, dim=0).cpu().numpy()
         all_labels = torch.cat(all_labels, dim=0).cpu().numpy()
 
-        f1 = sklearn.metrics.f1_score(all_labels, predictions) * 100.0
-        f1_scores.append(f1)
-
     model.net.train(status)
-    return accs, accs_mask_classes, f1_scores
+    return accs, accs_mask_classes
 
 
 def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> None:
@@ -106,7 +102,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         args.wandb_url = wandb.run.get_url()
 
     model.net.to(model.device)
-    results, results_mask_classes, results_f1 = [], [], []
+    results, results_mask_classes = [], []
 
     if not args.disable_log:
         logger = Logger(dataset.SETTING, dataset.NAME, model.NAME)
@@ -117,20 +113,20 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         dataset_copy = get_dataset(args)
         for t in range(dataset.N_TASKS):
             model.net.train()
-            if args.concept_drift == -1:
+            if args.poisoning_type == -1:
                 _, _ = dataset_copy.get_data_loaders()
             else:
-                _, _ = dataset_copy.get_drifted_data_loaders()
+                _, _ = dataset_copy.get_poisoned_data_loaders()
         if model.NAME != 'icarl' and model.NAME != 'pnn':
             random_results_class, random_results_task = evaluate(model, dataset_copy)
 
     print(file=sys.stderr)
     for t in range(dataset.N_TASKS):
         model.net.train()
-        if args.concept_drift == -1:
+        if args.poisoning_type == -1:
             train_loader, _ = dataset.get_data_loaders()
         else:
-            train_loader, _ = dataset.get_drifted_data_loaders()
+            train_loader, _ = dataset.get_poisoned_data_loaders()
         if hasattr(model, 'begin_task'):
             model.begin_task(dataset)
         if t and not args.ignore_other_metrics:
@@ -138,8 +134,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             results[t-1] = results[t-1] + accs[0]
             if dataset.SETTING == 'class-il':
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
-        if args.buffer_flushing == 1:
-            detect_uncertainty_drift(dataset, train_loader, model)
+
         scheduler = dataset.get_scheduler(model, args)
         for epoch in range(model.args.n_epochs):
             if args.model == 'joint':
@@ -153,8 +148,6 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 labels = labels.to(model.device)
                 not_aug_inputs = not_aug_inputs.to(model.device)
                 original_targets = None
-                if dataset.HAS_LABEL_DRIFT:
-                    original_targets = data[3].to(model.device)
 
                 if hasattr(dataset.train_loader.dataset, 'logits'):
                     logits = data[-1]
@@ -175,11 +168,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         accs = metrics[:2]
         results.append(accs[0])
         results_mask_classes.append(accs[1])
-        results_f1.append(metrics[2])
 
         mean_acc = np.mean(accs, axis=1)
-        mean_f1_scores = np.mean(metrics[2])
-        print_mean_accuracy(mean_acc, mean_f1_scores, t + 1, dataset.SETTING)
+        print_mean_accuracy(mean_acc, t + 1, dataset.SETTING)
 
         if not args.disable_log:
             logger.log(mean_acc)
@@ -192,9 +183,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
             wandb.log(d2)
 
-    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-drift-{args.concept_drift}-task-accuracies.json",
+    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
               'w') as jsonfile:
-        json.dump({'task_accuracies': results, 'task_f1': results_f1}, jsonfile)
+        json.dump({'task_accuracies': results}, jsonfile)
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)

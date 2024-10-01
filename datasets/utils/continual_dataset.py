@@ -18,11 +18,11 @@ class ContinualDataset:
     """
     Continual learning evaluation setting.
     """
+
     NAME: str
     SETTING: str
     N_CLASSES_PER_TASK: int
     N_TASKS: int
-    HAS_LABEL_DRIFT: bool = False
 
     def __init__(self, args: Namespace) -> None:
         """
@@ -33,17 +33,24 @@ class ContinualDataset:
         self.test_loaders = []
         self.i = 0
         self.args = args
-        self.drifting_classes = []
+        self.poisoned_classes = []
 
         if not all((self.NAME, self.SETTING, self.N_CLASSES_PER_TASK, self.N_TASKS)):
             raise NotImplementedError(
-                'The dataset must be initialized with all the required fields.')
+                "The dataset must be initialized with all the required fields."
+            )
 
-        if args.n_slots or args.n_drifts or args.sequential_drifts:
+        if args.n_slots or args.n_poisonings or args.sequential_poisonings:
             n_tasks = self.N_TASKS
             n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
-            self.stream_spec = StreamSpecification(n_tasks, n_classes, random_seed=args.seed,
-                                                   n_slots=args.n_slots, n_drifts=args.n_drifts, sequential_drifts=args.sequential_drifts)
+            self.stream_spec = StreamSpecification(
+                n_tasks,
+                n_classes,
+                random_seed=args.seed,
+                n_slots=args.n_slots,
+                n_poisonings=args.n_poisonings,
+                sequential_poisonings=args.sequential_poisonings,
+            )
             self.stream_spec_it = iter(self.stream_spec)
 
     def get_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
@@ -58,18 +65,20 @@ class ContinualDataset:
         test_dataset = self.get_dataset(train=False)
         test_dataset.select_classes(new_classes)
 
-        train_loader = DataLoader(train_dataset,
-                                  batch_size=self.args.batch_size, shuffle=True, num_workers=4)
-        test_loader = DataLoader(test_dataset,
-                                 batch_size=self.args.batch_size, shuffle=False, num_workers=4)
+        train_loader = DataLoader(
+            train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4
+        )
+        test_loader = DataLoader(
+            test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4
+        )
         self.train_loader = train_loader
         self.test_loaders.append(test_loader)
 
         self.i += self.N_CLASSES_PER_TASK
         return train_loader, test_loader
 
-    def get_drifted_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
-        current_classes, drifted_classes = next(self.stream_spec_it)
+    def get_poisoned_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
+        current_classes, poisoned_classes = next(self.stream_spec_it)
 
         train_dataset = self.get_dataset(train=True)
         train_dataset.select_classes(current_classes)
@@ -78,36 +87,51 @@ class ContinualDataset:
         test_dataset.select_classes(current_classes)
         test_dataset.prepare_normal_data()
 
-        if len(drifted_classes) > 0:
-            drifting_train_dataset = self.get_dataset(train=True)
-            drifting_train_dataset.select_classes(drifted_classes)
-            drifting_train_dataset.apply_drift(drifted_classes)
+        if len(poisoned_classes) > 0:
+            poisoned_train_dataset = self.get_dataset(train=True)
+            poisoned_train_dataset.select_classes(poisoned_classes)
+            poisoned_train_dataset.apply_poisoning(poisoned_classes)
 
-            drifting_test_dataset = self.get_dataset(train=False)
-            drifting_test_dataset.select_classes(drifted_classes)
-            drifting_test_dataset.apply_drift(drifted_classes)
+            poisoned_test_dataset = self.get_dataset(train=False)
+            poisoned_test_dataset.select_classes(poisoned_classes)
+            poisoned_test_dataset.apply_poisoning(poisoned_classes)
 
-            train_dataset = torch.utils.data.ConcatDataset([drifting_train_dataset, train_dataset])
-            test_dataset = torch.utils.data.ConcatDataset([drifting_test_dataset, test_dataset])
-        train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
+            train_dataset = torch.utils.data.ConcatDataset(
+                [poisoned_train_dataset, train_dataset]
+            )
+            test_dataset = torch.utils.data.ConcatDataset(
+                [poisoned_test_dataset, test_dataset]
+            )
+        train_loader = DataLoader(
+            train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4
+        )
         self.train_loader = train_loader
 
-        if len(drifted_classes) > 0:
+        if len(poisoned_classes) > 0:
             for t in range(len(self.test_loaders)):
                 prev_test_data = self.test_loaders[t].dataset
                 if type(prev_test_data) == torch.utils.data.ConcatDataset:
                     for prev_data in prev_test_data.datasets:
-                        prev_data.apply_drift(drifted_classes)
-                    prev_test_data.cumulative_sizes = prev_test_data.cumsum(prev_test_data.datasets)
+                        prev_data.apply_poisoning(poisoned_classes)
+                    prev_test_data.cumulative_sizes = prev_test_data.cumsum(
+                        prev_test_data.datasets
+                    )
                 else:
-                    prev_test_data.apply_drift(drifted_classes)
-                self.test_loaders[t] = DataLoader(prev_test_data, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
+                    prev_test_data.apply_poisoning(poisoned_classes)
+                self.test_loaders[t] = DataLoader(
+                    prev_test_data,
+                    batch_size=self.args.batch_size,
+                    shuffle=False,
+                    num_workers=4,
+                )
 
-        self.drifting_classes = drifted_classes
+        self.poisoned_classes = poisoned_classes
 
-        test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
+        test_loader = DataLoader(
+            test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4
+        )
 
-        # current test loader contains undrifted images
+        # current test loader contains un-poisoned images
         self.test_loaders.append(test_loader)
 
         return train_loader, test_loader

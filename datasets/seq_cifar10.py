@@ -16,17 +16,16 @@ from torchvision.datasets import CIFAR10
 from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
+from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
 class TrainCIFAR10(MammothDataset, CIFAR10):
-    def __init__(self, root: str, transform, not_aug_transform, train_drift, drift_transform) -> None:
+    def __init__(self, root: str, transform, not_aug_transform, poisoning_transform) -> None:
         self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(root, train=True, transform=transform, target_transform=None, download=not self._check_integrity())
         self.not_aug_transform = not_aug_transform
-        self.train_drift = train_drift
-        self.drift_transform = drift_transform
+        self.poisoning_transform = poisoning_transform
         self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
@@ -40,10 +39,8 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
         # to return a PIL Image
         img = Image.fromarray(img, mode='RGB')
 
-        if target in self.drifted_classes:
-            img = self.drift_transform(img)
-        else:
-            img = self.train_drift(img)
+        if target in self.poisoned_classes:
+            img = self.poisoning_transform(img)
 
         original_img = img.copy()
         img = self.transform(img)
@@ -66,16 +63,12 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
             mask = np.logical_or(mask, np.array(self.targets) == label)
         self.data = self.data[mask]
         self.targets = np.array(self.targets)[mask]
-
         self.classes = classes_list
 
-    def apply_drift(self, classes: list):
+    def apply_poisoning(self, classes: list):
         if len(set(self.classes).union(classes)) == 0:
             return
-        self.drifted_classes.extend(classes)
-
-        # TODO: figure out how to apply drift based on transform multiple times
-        # maybe we should change transforms or change the drift severity?
+        self.poisoned_classes.extend(classes)
 
     def prepare_normal_data(self):
         pass
@@ -84,12 +77,10 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
 class TestCIFAR10(MammothDataset, CIFAR10):
     """Workaround to avoid printing the already downloaded messages."""
 
-    def __init__(self, root, transform, train_drift, drift_transform) -> None:
+    def __init__(self, root, transform, poisoning_transform) -> None:
         self.root = root
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
-        self.train_drift = train_drift
-        self.drift_transform = drift_transform
-
+        self.poisoning_transform = poisoning_transform
         self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
@@ -106,10 +97,8 @@ class TestCIFAR10(MammothDataset, CIFAR10):
         # to return a PIL Image
         img = Image.fromarray(img)
 
-        if target in self.drifted_classes:
-            img = self.drift_transform(img)
-        else:
-            img = self.train_drift(img)
+        if target in self.poisoned_classes:
+            img = self.poisoning_transform(img)
 
         img = self.transform(img)
 
@@ -127,13 +116,12 @@ class TestCIFAR10(MammothDataset, CIFAR10):
             mask = np.logical_or(mask, np.array(self.targets) == label)
         self.data = self.data[mask]
         self.targets = np.array(self.targets)[mask]
-
         self.classes = classes_list
 
-    def apply_drift(self, classes: list):
+    def apply_poisoning(self, classes: list):
         if len(set(self.classes).union(classes)) == 0:
             return
-        self.drifted_classes.extend(classes)
+        self.poisoned_classes.extend(classes)
 
     def prepare_normal_data(self):
         pass
@@ -160,7 +148,7 @@ class SequentialCIFAR10(ContinualDataset):
 
     NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
 
-    DRIFT_TYPES = [
+    POISONING_TYPES = [
         DefocusBlur,
         GaussianNoise,
         ShotNoise,
@@ -170,23 +158,19 @@ class SequentialCIFAR10(ContinualDataset):
 
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
-        DRIFT_SEVERITY = self.args.drift_severity
-        TRAIN_DRIFT = transforms.Compose([
-            self.DRIFT_TYPES[self.args.train_drift](DRIFT_SEVERITY),
-            transforms.ToPILImage()
-        ])
-        DRIFT = transforms.Compose([
-            self.DRIFT_TYPES[self.args.concept_drift](DRIFT_SEVERITY),
+        POISONING_SEVERITY = self.args.poisoning_severity
+        POISONING = transforms.Compose([
+            self.POISONING_TYPES[self.args.poisoning_type](POISONING_SEVERITY),
             transforms.ToPILImage()
         ])
 
 
         if train:
             return TrainCIFAR10(base_path() + 'CIFAR10',
-                                transform=self.TRANSFORM, not_aug_transform=self.NO_AUG_TRANSFORM, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
+                                transform=self.TRANSFORM, not_aug_transform=self.NO_AUG_TRANSFORM, poisoning_transform=POISONING)
         else:
             return TestCIFAR10(base_path() + 'CIFAR10',
-                               transform=self.TEST_TRANSFORM, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
+                               transform=self.TEST_TRANSFORM, poisoning_transform=POISONING)
 
     def get_transform(self):
         transform = transforms.Compose(
