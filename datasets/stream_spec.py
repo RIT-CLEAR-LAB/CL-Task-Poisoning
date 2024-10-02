@@ -4,9 +4,16 @@ from typing import Union
 
 
 class StreamSpecification:
-    def __init__(self, n_tasks: int, n_classes: int, random_seed: int = None,
-                 n_slots: Union[int, None] = None, n_drifts: Union[int, None] = None, sequential_drifts: bool = False,
-                 max_classes_per_drift: int = 5) -> None:
+    def __init__(
+        self,
+        n_tasks: int,
+        n_classes: int,
+        random_seed: int = None,
+        n_slots: Union[int, None] = None,
+        n_poisonings: Union[int, None] = None,
+        sequential_poisonings: bool = False,
+        max_classes_per_poisoning: int = 5,
+    ) -> None:
         """
         Utility class that represents the class-task layout of the overall task stream.
 
@@ -15,72 +22,101 @@ class StreamSpecification:
         n_classes - number of all classes in dataset
         random_seed - random seed used for experiments
         n_slots - number of classes per task, used for creating stream layout in the style of Class-Incremental learning with repetition
-        n_drifts - number of drifts created in whole task stream
-        sequential_drifts - if true each task will consist of set of new classes and drifted classes from previous task
-        max_classes_per_drifts - number of classes that drift is applied to. used only with n_drifts
+        n_poisonings - number of poisonings created in whole task stream
+        sequential_poisonings - if true each task will consist of set of new classes and poisoned classes from previous task
+        max_classes_per_poisoning - number of classes that poisoning is applied to. used only with n_poisonings
         """
-        assert n_tasks >= 2, 'need at least two tasks for continual learning'
-        assert n_slots is not None or n_drifts is not None or sequential_drifts, 'must specify drift type'
+        assert n_tasks >= 2, "need at least two tasks for continual learning"
+        assert (
+            n_slots is not None or n_poisonings is not None or sequential_poisonings
+        ), "must specify poisoning type"
 
         if n_slots is not None:
-            assert n_drifts == None and sequential_drifts == False, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
-        if n_drifts is not None:
-            assert n_slots == None and sequential_drifts == False, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
-        if sequential_drifts:
-            assert n_slots == None and n_drifts is None, 'you must use n_slots, n_drifts or sequential_drifts arguments (cant use them together)'
+            assert (
+                n_poisonings == None and sequential_poisonings == False
+            ), "you must use n_slots, n_poisonings or sequential_poisonings arguments (cant use them together)"
+        if n_poisonings is not None:
+            assert (
+                n_slots == None and sequential_poisonings == False
+            ), "you must use n_slots, n_poisonings or sequential_poisonings arguments (cant use them together)"
+        if sequential_poisonings:
+            assert (
+                n_slots == None and n_poisonings is None
+            ), "you must use n_slots, n_poisonings or sequential_poisonings arguments (cant use them together)"
 
         self.n_tasks = n_tasks
         self.n_slots = n_slots
         self.n_classes = n_classes
         self.random_seed = random_seed
-        self.n_drifts = n_drifts
-        self.sequential_drifts = sequential_drifts
-        self.max_classes_per_drift = max_classes_per_drift
+        self.n_poisonings = n_poisonings
+        self.sequential_poisonings = sequential_poisonings
+        self.max_classes_per_poisoning = max_classes_per_poisoning
 
         self._new_classes: list[list[int]] = list()
-        self._drifted_classes: list[list[int]] = list()
-        if n_drifts is not None:
-            self.create_n_drifts()
-        elif sequential_drifts:
-            self.create_sequential_drifts()
+        self._poisoned_classes: list[list[int]] = list()
+        if n_poisonings is not None:
+            self.create_n_poisonings()
+        elif sequential_poisonings:
+            self.create_sequential_poisonings()
         else:
             self.random_class_asigment()
 
         self.current_task = 0
 
-    def create_n_drifts(self):
-        assert self.n_drifts < self.n_tasks
+    def create_n_poisonings(self):
+        assert self.n_poisonings < self.n_tasks
 
-        drift_duration = self.n_tasks // (self.n_drifts + 1)
-        drift_indexes = list(np.linspace(drift_duration, self.n_tasks, num=self.n_drifts, endpoint=False, dtype=int))
-        print('Creating drifts at tasks: ', drift_indexes)
+        poisoning_duration = self.n_tasks // (self.n_poisonings + 1)
+        poisoning_indexes = list(
+            np.linspace(
+                poisoning_duration,
+                self.n_tasks,
+                num=self.n_poisonings,
+                endpoint=False,
+                dtype=int,
+            )
+        )
+        print("Creating poisonings at tasks: ", poisoning_indexes)
 
         classes_per_task = self.n_classes // self.n_tasks
-        drift_begin_idx = 0
+        poisoning_begin_idx = 0
         for t in range(self.n_tasks):
-            new_classes = list(range(classes_per_task * t, classes_per_task * (t+1)))
+            new_classes = list(range(classes_per_task * t, classes_per_task * (t + 1)))
             self._new_classes.append(new_classes)
-            if t in drift_indexes:
-                drifted_classes = list(range(drift_begin_idx, classes_per_task * t))
-                drifted_classes = drifted_classes[-self.max_classes_per_drift:]
-                self._drifted_classes.append(drifted_classes)
-                drift_begin_idx = classes_per_task * t
+            if t in poisoning_indexes:
+                poisoned_classes = list(
+                    range(poisoning_begin_idx, classes_per_task * t)
+                )
+                poisoned_classes = poisoned_classes[-self.max_classes_per_poisoning :]
+                self._poisoned_classes.append(poisoned_classes)
+                poisoning_begin_idx = classes_per_task * t
             else:
-                self._drifted_classes.append([])
+                self._poisoned_classes.append([])
 
-    def create_sequential_drifts(self):
+    def create_sequential_poisonings(self):
         classes_per_task = self.n_classes // self.n_tasks
-        assert classes_per_task >= 2, 'At least two classes should be present in each new task'
+        assert (
+            classes_per_task >= 2
+        ), "At least two classes should be present in each new task"
 
         for t in range(self.n_tasks):
-            self._new_classes.append(list(range(classes_per_task * t, classes_per_task * (t+1))))
-            self._drifted_classes.append(list(range(max(classes_per_task * t - classes_per_task, 0), classes_per_task * t)))
+            self._new_classes.append(
+                list(range(classes_per_task * t, classes_per_task * (t + 1)))
+            )
+            self._poisoned_classes.append(
+                list(
+                    range(
+                        max(classes_per_task * t - classes_per_task, 0),
+                        classes_per_task * t,
+                    )
+                )
+            )
 
     def random_class_asigment(self):
-        """ Random class assigment to the tasks.
+        """Random class assigment to the tasks.
         Based on the notion of slot-based generator from https://arxiv.org/pdf/2301.11396
         Each task has n_slots slots. Each slot can be filled with exatly one class.
-        When classes apears more than once in the stream we assume, that drift occured, and data of given class should change.
+        When classes apears more than once in the stream we assume, that poisoning occured, and data of given class should change.
         When there are some classes left at the end, they are appended to the end of the stream.
         """
         classes_pool = list(range(self.n_classes))
@@ -103,13 +139,13 @@ class StreamSpecification:
             task_classes.remove(None)
 
             self._new_classes.append([])
-            self._drifted_classes.append([])
+            self._poisoned_classes.append([])
             for c in task_classes:
                 if c not in used_classes:
                     self._new_classes[-1].append(c)
                     used_classes.add(c)
                 else:
-                    self._drifted_classes[-1].append(c)
+                    self._poisoned_classes[-1].append(c)
 
         class_mapping = dict()
         last_class = 0
@@ -119,30 +155,38 @@ class StreamSpecification:
                     class_mapping[c] = last_class
                     last_class += 1
 
-        self._new_classes = [sorted(class_mapping[c] for c in task_class) for task_class in self._new_classes]
-        self._drifted_classes = [sorted(class_mapping[c] for c in task_class) for task_class in self._drifted_classes]
+        self._new_classes = [
+            sorted(class_mapping[c] for c in task_class)
+            for task_class in self._new_classes
+        ]
+        self._poisoned_classes = [
+            sorted(class_mapping[c] for c in task_class)
+            for task_class in self._poisoned_classes
+        ]
 
     def __next__(self):
         while self.current_task < self.n_tasks:
-            yield self._new_classes[self.current_task], self._drifted_classes[self.current_task]
+            yield self._new_classes[self.current_task], self._poisoned_classes[
+                self.current_task
+            ]
             self.current_task += 1
 
     def __iter__(self):
         return next(self)
 
     @property
-    def all_drifted_classes(self):
-        """return all classes for which drift has occured so far"""
-        all_drifted = set()
-        for task_drifted in self._drifted_classes[:self.current_task+1]:
-            for c in task_drifted:
-                all_drifted.add(c)
-        return list(all_drifted)
+    def all_poisoned_classes(self):
+        """return all classes for which poisoning has occured so far"""
+        all_poisoned = set()
+        for task_poisoned in self._poisoned_classes[: self.current_task + 1]:
+            for c in task_poisoned:
+                all_poisoned.add(c)
+        return list(all_poisoned)
 
     @property
-    def drifted_classes(self):
-        """return classes from last task for which dirft has occured"""
-        return self._drifted_classes[self.current_task]
+    def poisoned_classes(self):
+        """return classes from last task for which poisoning has occured"""
+        return self._poisoned_classes[self.current_task]
 
     @property
     def new_classes(self):
@@ -150,19 +194,19 @@ class StreamSpecification:
         return self._new_classes[self.current_task]
 
     @property
-    def max_drifts_per_class(self):
-        if len(self._drifted_classes) == 0:
-            print('max_drifts_per_class call: no drifts in current setup')
+    def max_poisonings_per_class(self):
+        if len(self._poisoned_classes) == 0:
+            print("max_poisonings_per_class call: no poisonings in current setup")
             return 0
         counter = collections.Counter()
-        for classes in self._drifted_classes:
+        for classes in self._poisoned_classes:
             counter.update(classes)
         max_occurence = counter.most_common(1)[0][1]
         return max_occurence
 
 
-if __name__ == '__main__':
-    ss = StreamSpecification(20, 100, 45, n_drifts=10)
+if __name__ == "__main__":
+    ss = StreamSpecification(20, 100, 45, n_poisonings=10)
     ssi = iter(ss)
     for new, old in ssi:
-        print(f'new = {new} old = {old}')
+        print(f"new = {new} old = {old}")

@@ -16,7 +16,7 @@ from PIL import Image
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
 from utils.conf import base_path_dataset as base_path
-from datasets.transforms.driftTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
+from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -50,13 +50,11 @@ def load_data(root, train=True):
 
 
 class TrainTinyImagenet(MammothDataset):
-    def __init__(self, root: str, transform, not_aug_transform, train_drift, drift_transform) -> None:
+    def __init__(self, root: str, transform, not_aug_transform, poisoning_transform) -> None:
         super().__init__()
         self.transform = transform
         self.not_aug_transform = not_aug_transform
-        self.train_drift = train_drift
-        self.drift_transform = drift_transform
-
+        self.poisoning_transform = poisoning_transform
         download_tinyimagenet(root)
         self.data, self.targets = load_data(root, train=True)
 
@@ -67,10 +65,8 @@ class TrainTinyImagenet(MammothDataset):
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
 
-        if target in self.drifted_classes:
-            img = self.drift_transform(img)
-        else:
-            img = self.train_drift(img)
+        if target in self.poisoned_classes:
+            img = self.poisoning_transform(img)
 
         original_img = img.copy()
         img = self.transform(img)
@@ -96,29 +92,23 @@ class TrainTinyImagenet(MammothDataset):
             mask = np.logical_or(mask, self.targets == label)
         self.data = self.data[mask]
         self.targets = self.targets[mask]
-
         self.classes = classes_list
 
-    def apply_drift(self, classes: list):
+    def apply_poisoning(self, classes: list):
         if len(set(self.classes).union(classes)) == 0:
             return
-        self.drifted_classes.extend(classes)
-
-        # TODO: figure out how to apply drift based on transform multiple times
-        # maybe we should change transforms or change the drift severity?
+        self.poisoned_classes.extend(classes)
 
     def prepare_normal_data(self):
         pass
 
 
 class TestTinyImagenet(MammothDataset):
-    def __init__(self, root: str, transform, train_drift, drift_transform) -> None:
+    def __init__(self, root: str, transform, poisoning_transform) -> None:
         super().__init__()
 
         self.transform = transform
-        self.train_drift = train_drift
-        self.drift_transform = drift_transform
-
+        self.poisoning_transform = poisoning_transform
         download_tinyimagenet(root)
         self.data, self.targets = load_data(root, train=False)
 
@@ -129,10 +119,8 @@ class TestTinyImagenet(MammothDataset):
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
 
-        if target in self.drifted_classes:
-            img = self.drift_transform(img)
-        else:
-            img = self.train_drift(img)
+        if target in self.poisoned_classes:
+            img = self.poisoning_transform(img)
 
         img = self.transform(img)
 
@@ -156,16 +144,12 @@ class TestTinyImagenet(MammothDataset):
             mask = np.logical_or(mask, self.targets == label)
         self.data = self.data[mask]
         self.targets = self.targets[mask]
-
         self.classes = classes_list
 
-    def apply_drift(self, classes: list):
+    def apply_poisoning(self, classes: list):
         if len(set(self.classes).union(classes)) == 0:
             return
-        self.drifted_classes.extend(classes)
-
-        # TODO: figure out how to apply drift based on transform multiple times
-        # maybe we should change transforms or change the drift severity?
+        self.poisoned_classes.extend(classes)
 
     def prepare_normal_data(self):
         pass
@@ -177,13 +161,21 @@ class SequentialTinyImagenet(ContinualDataset):
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 20
     N_TASKS = 10
+
     TRANSFORM = transforms.Compose(
         [transforms.RandomCrop(64, padding=4),
          transforms.RandomHorizontalFlip(),
          transforms.ToTensor(),
          ])
+    
+    TEST_TRANSFORM = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821))
+    ])
+    
+    NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
 
-    DRIFT_TYPES = [
+    POISONING_TYPES = [
         DefocusBlur,
         GaussianNoise,
         ShotNoise,
@@ -192,25 +184,18 @@ class SequentialTinyImagenet(ContinualDataset):
     ]
 
     def get_dataset(self, train=True):
-        DRIFT_SEVERITY = self.args.drift_severity
-        TRAIN_DRIFT = transforms.Compose([
-            self.DRIFT_TYPES[self.args.train_drift](DRIFT_SEVERITY),
-            transforms.ToPILImage()
-        ])
-        DRIFT = transforms.Compose([
-            self.DRIFT_TYPES[self.args.concept_drift](DRIFT_SEVERITY),
+        POISONING_SEVERITY = self.args.poisoning_severity
+        POISONING = transforms.Compose([
+            self.POISONING_TYPES[self.args.poisoning_type](POISONING_SEVERITY),
             transforms.ToPILImage()
         ])
 
-        NO_AUG = transforms.Compose([
-            transforms.ToTensor(),
-        ])
         if train:
             return TrainTinyImagenet(base_path() + 'TINYIMG',
-                                     transform=self.TRANSFORM, not_aug_transform=NO_AUG, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
+                                     transform=self.TRANSFORM, not_aug_transform=self.NO_AUG_TRANSFORM, poisoning_transform=POISONING)
         else:
             return TestTinyImagenet(base_path() + 'TINYIMG',
-                                    transform=NO_AUG, train_drift=TRAIN_DRIFT, drift_transform=DRIFT)
+                                    transform=self.TEST_TRANSFORM, poisoning_transform=POISONING)
 
     @staticmethod
     def get_backbone():
