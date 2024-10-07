@@ -147,14 +147,13 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 inputs = inputs.to(model.device)
                 labels = labels.to(model.device)
                 not_aug_inputs = not_aug_inputs.to(model.device)
-                original_targets = None
 
                 if hasattr(dataset.train_loader.dataset, 'logits'):
                     logits = data[-1]
                     logits = logits.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits, original_targets)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
                 else:
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, original_targets)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
@@ -183,7 +182,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
             wandb.log(d2)
 
-    with open(f"../results/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
+    with open(f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
               'w') as jsonfile:
         json.dump({'task_accuracies': results}, jsonfile)
 
