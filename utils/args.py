@@ -36,16 +36,17 @@ def add_experiment_args(parser: ArgumentParser) -> None:
 
     parser.add_argument('--distributed', type=str, default='no', choices=['no', 'dp', 'ddp'])
 
-    parser.add_argument('--poisoning_type', default=1, choices=[0, 1, 2, 3, 4, -1], type=int,
+    parser.add_argument('--poisoning_type', default=-1, choices=[-1, 0, 1, 2, 3, 4], type=int,
                         help='Choose the poisoning transform to be applied to training data: \
-                        Defocus Blur-> 0, Gaussian Noise-> 1, Shot Noise-> 2, Speckle Noise-> 3, Identity (No transform) -> 4 or -1')
+                        Defocus Blur-> 0, Gaussian Noise-> 1, Shot Noise-> 2, Speckle Noise-> 3, Identity (No transform) -> 4 \
+                        If set to -1 (default), no tasks will be poisoned.')
     parser.add_argument('--poisoning_severity', default=1, choices=[1, 2, 3, 4, 5], type=int,
                         help='Choose the intensity of the poisoning transform:')
-    parser.add_argument('--n_slots', default=None, type=int, help='number of classes per task used when generating task stream randomly based on slots')
-    parser.add_argument('--n_poisonings', default=None, type=int, help='number of poisonings created when creating evenly spaced drfits')
-    parser.add_argument('--max_classes_per_poisoning', type=int, default=5, help='maximum number of classes that can be poisoned at once. Used only with n_poisonings')
-    parser.add_argument('--sequential_poisonings', action='store_true', help='if used each task will consist of both new classes and poisoned classes from previous task')
-
+    parser.add_argument('--n_poisonings', default=None, type=int,
+                        help='number of poisonings created when creating evenly spaced drfits')
+    parser.add_argument('--classes_per_poisoning', type=int, default=0,
+                        help='Number of classes that can be poisoned at once with n_poisonings. \
+                        If set to 0 (default), all previous classes will be poisoned.')
 
 def add_management_args(parser: ArgumentParser) -> None:
     parser.add_argument('--seed', type=int, default=None,
