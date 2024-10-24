@@ -40,16 +40,15 @@ class ContinualDataset:
                 "The dataset must be initialized with all the required fields."
             )
 
-        if args.n_slots or args.n_poisonings or args.sequential_poisonings:
+        if args.n_poisonings:
             n_tasks = self.N_TASKS
             n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
             self.stream_spec = StreamSpecification(
                 n_tasks,
                 n_classes,
                 random_seed=args.seed,
-                n_slots=args.n_slots,
                 n_poisonings=args.n_poisonings,
-                sequential_poisonings=args.sequential_poisonings,
+                classes_per_poisoning=args.classes_per_poisoning,
             )
             self.stream_spec_it = iter(self.stream_spec)
 
@@ -65,12 +64,9 @@ class ContinualDataset:
         test_dataset = self.get_dataset(train=False)
         test_dataset.select_classes(new_classes)
 
-        train_loader = DataLoader(
-            train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4
-        )
-        test_loader = DataLoader(
-            test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4
-        )
+        train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
+        test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
+
         self.train_loader = train_loader
         self.test_loaders.append(test_loader)
 
@@ -79,59 +75,35 @@ class ContinualDataset:
 
     def get_poisoned_data_loaders(self) -> Tuple[DataLoader, DataLoader]:
         current_classes, poisoned_classes = next(self.stream_spec_it)
+        self.poisoned_classes = poisoned_classes
 
-        train_dataset = self.get_dataset(train=True)
-        train_dataset.select_classes(current_classes)
-        train_dataset.prepare_normal_data()
-        test_dataset = self.get_dataset(train=False)
-        test_dataset.select_classes(current_classes)
-        test_dataset.prepare_normal_data()
+        print(f"New Classes: {current_classes}")
+        print(f"Poisoned Classes: {poisoned_classes}")
+
+        train_dataset = None
+        if len(current_classes) > 0:
+            train_dataset = self.get_dataset(train=True)
+            train_dataset.select_classes(current_classes)
 
         if len(poisoned_classes) > 0:
             poisoned_train_dataset = self.get_dataset(train=True)
             poisoned_train_dataset.select_classes(poisoned_classes)
             poisoned_train_dataset.apply_poisoning(poisoned_classes)
 
-            poisoned_test_dataset = self.get_dataset(train=False)
-            poisoned_test_dataset.select_classes(poisoned_classes)
-            poisoned_test_dataset.apply_poisoning(poisoned_classes)
+            if train_dataset is not None:
+                train_dataset = torch.utils.data.ConcatDataset([train_dataset, poisoned_train_dataset])
+            else:
+                train_dataset = poisoned_train_dataset
 
-            train_dataset = torch.utils.data.ConcatDataset(
-                [poisoned_train_dataset, train_dataset]
-            )
-            test_dataset = torch.utils.data.ConcatDataset(
-                [poisoned_test_dataset, test_dataset]
-            )
-        train_loader = DataLoader(
-            train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4
-        )
+        if train_dataset is None:
+            raise ValueError("No classes to train on in the current task")
+
+        train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
         self.train_loader = train_loader
 
-        if len(poisoned_classes) > 0:
-            for t in range(len(self.test_loaders)):
-                prev_test_data = self.test_loaders[t].dataset
-                if type(prev_test_data) == torch.utils.data.ConcatDataset:
-                    for prev_data in prev_test_data.datasets:
-                        prev_data.apply_poisoning(poisoned_classes)
-                    prev_test_data.cumulative_sizes = prev_test_data.cumsum(
-                        prev_test_data.datasets
-                    )
-                else:
-                    prev_test_data.apply_poisoning(poisoned_classes)
-                self.test_loaders[t] = DataLoader(
-                    prev_test_data,
-                    batch_size=self.args.batch_size,
-                    shuffle=False,
-                    num_workers=4,
-                )
-
-        self.poisoned_classes = poisoned_classes
-
-        test_loader = DataLoader(
-            test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4
-        )
-
-        # current test loader contains un-poisoned images
+        test_dataset = self.get_dataset(train=False)
+        test_dataset.select_classes(current_classes + poisoned_classes)
+        test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
         self.test_loaders.append(test_loader)
 
         return train_loader, test_loader
