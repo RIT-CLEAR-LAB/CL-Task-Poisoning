@@ -6,27 +6,26 @@
 from typing import Tuple
 
 import torch.nn.functional as F
-import torch.optim
 import torchvision.transforms as transforms
-from backbone.ResNet18 import resnet18
-from PIL import Image
-from torchvision.datasets import CIFAR100
 import numpy as np
 
+from backbone.ResNet18 import resnet18
+from PIL import Image
+from torchvision.datasets import CIFAR10
+
+from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from utils.conf import base_path_dataset as base_path
-from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, RandomNoise, PixelPermutation, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
-class TrainCIFAR100(MammothDataset, CIFAR100):
-    def __init__(self, root: str, transform, not_aug_transform, poisoning_transform) -> None:
+class TrainCIFAR10(MammothDataset, CIFAR10):
+    def __init__(self, root: str, transform, not_aug_transform, poisoning_severity) -> None:
         self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(root, train=True, transform=transform, target_transform=None, download=not self._check_integrity())
         self.not_aug_transform = not_aug_transform
-        self.poisoning_transform = poisoning_transform
-        self.classes = list(range(100))
+        self.poisoning_severity = poisoning_severity
+        self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
 
@@ -34,10 +33,6 @@ class TrainCIFAR100(MammothDataset, CIFAR100):
 
         # to return a PIL Image
         img = Image.fromarray(img, mode='RGB')
-
-        if target in self.poisoned_classes:
-            img = self.poisoning_transform(img)
-
         original_img = img.copy()
         img = self.transform(img)
         not_aug_img = self.not_aug_transform(original_img)
@@ -66,16 +61,27 @@ class TrainCIFAR100(MammothDataset, CIFAR100):
             return
         self.poisoned_classes.extend(classes)
 
+        if len(classes) < 2: 
+            raise ValueError('At least 2 classes required to randomly switch labels between them')
+
+        switch_prob = [0.0, 0.25, 0.5, 0.75, 1.0][self.poisoning_severity - 1]
+
+        for i in range(len(self.targets)):
+            original_label = self.targets[i]
+            if original_label in classes and np.random.rand() < switch_prob:
+                possible_labels = [cls for cls in classes if cls != original_label]
+                self.targets[i] = np.random.choice(possible_labels)
+
     def prepare_normal_data(self):
         pass
 
 
-class TestCIFAR100(MammothDataset, CIFAR100):
-    def __init__(self, root, transform, poisoning_transform) -> None:
+class TestCIFAR10(MammothDataset, CIFAR10):
+    def __init__(self, root, transform, poisoning_severity) -> None:
         self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
-        self.poisoning_transform = poisoning_transform
-        self.classes = list(range(100))
+        self.poisoning_severity = poisoning_severity
+        self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
 
@@ -83,10 +89,6 @@ class TestCIFAR100(MammothDataset, CIFAR100):
 
         # to return a PIL Image
         img = Image.fromarray(img)
-
-        if target in self.poisoned_classes:
-            img = self.poisoning_transform(img)
-
         img = self.transform(img)
 
         return img, target
@@ -110,56 +112,58 @@ class TestCIFAR100(MammothDataset, CIFAR100):
             return
         self.poisoned_classes.extend(classes)
 
+        if len(classes) < 2: 
+            raise ValueError('At least 2 classes required to randomly switch labels between them')
+
+        switch_prob = [0.0, 0.25, 0.5, 0.75, 1.0][self.poisoning_severity - 1]
+
+        for i in range(len(self.targets)):
+            original_label = self.targets[i]
+            if original_label in classes and np.random.rand() < switch_prob:
+                possible_labels = [cls for cls in classes if cls != original_label]
+                self.targets[i] = np.random.choice(possible_labels)
+
     def prepare_normal_data(self):
         pass
 
 
-class SequentialCIFAR100(ContinualDataset):
+class SequentialCIFAR10LabelPoisoning(ContinualDataset):
 
-    NAME = 'seq-cifar100'
+    NAME = 'seq-cifar10-label-poisoning'
     SETTING = 'class-il'
-    N_CLASSES_PER_TASK = 5
-    N_TASKS = 20
+    N_CLASSES_PER_TASK = 2
+    N_TASKS = 5
 
     TRANSFORM = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
     ])
 
     TEST_TRANSFORM = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
     ])
 
     NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
 
-    POISONING_TYPES = [
-        DefocusBlur,
-        GaussianNoise,
-        ShotNoise,
-        SpeckleNoise,
-        RandomNoise,
-        PixelPermutation,
-        Identity,
-    ]
-
     def get_dataset(self, train=True):
-        """returns native version of represented dataset"""
         POISONING_SEVERITY = self.args.poisoning_severity
-        POISONING = transforms.Compose([
-            self.POISONING_TYPES[self.args.poisoning_type](POISONING_SEVERITY),
-            transforms.ToPILImage()
-        ])
-
 
         if train:
-            return TrainCIFAR100(base_path() + 'CIFAR100',
-                                 transform=self.TRANSFORM, not_aug_transform=self.NO_AUG_TRANSFORM, poisoning_transform=POISONING)
+            return TrainCIFAR10(
+                base_path() + "CIFAR10",
+                transform=self.TRANSFORM,
+                not_aug_transform=self.NO_AUG_TRANSFORM,
+                poisoning_severity=POISONING_SEVERITY,
+            )
         else:
-            return TestCIFAR100(base_path() + 'CIFAR100',
-                                transform=self.TEST_TRANSFORM, poisoning_transform=POISONING)
+            return TestCIFAR10(
+                base_path() + "CIFAR10",
+                transform=self.TEST_TRANSFORM,
+                poisoning_severity=POISONING_SEVERITY,
+            )
 
     def get_transform(self):
         transform = transforms.Compose(
@@ -168,8 +172,8 @@ class SequentialCIFAR100(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        return resnet18(SequentialCIFAR100.N_CLASSES_PER_TASK
-                        * SequentialCIFAR100.N_TASKS)
+        return resnet18(SequentialCIFAR10LabelPoisoning.N_CLASSES_PER_TASK
+                        * SequentialCIFAR10LabelPoisoning.N_TASKS)
 
     @staticmethod
     def get_loss():
@@ -177,15 +181,19 @@ class SequentialCIFAR100(ContinualDataset):
 
     @staticmethod
     def get_normalization_transform():
-        transform = transforms.Normalize((0.5071, 0.4867, 0.4408),
-                                         (0.2675, 0.2565, 0.2761))
+        transform = transforms.Normalize((0.4914, 0.4822, 0.4465),
+                                         (0.2470, 0.2435, 0.2615))
         return transform
 
     @staticmethod
     def get_denormalization_transform():
-        transform = DeNormalize((0.5071, 0.4867, 0.4408),
-                                (0.2675, 0.2565, 0.2761))
+        transform = DeNormalize((0.4914, 0.4822, 0.4465),
+                                (0.2470, 0.2435, 0.2615))
         return transform
+
+    @staticmethod
+    def get_scheduler(model, args):
+        return None
 
     @staticmethod
     def get_epochs():
@@ -197,10 +205,4 @@ class SequentialCIFAR100(ContinualDataset):
 
     @staticmethod
     def get_minibatch_size():
-        return SequentialCIFAR100.get_batch_size()
-
-    @staticmethod
-    def get_scheduler(model, args) -> torch.optim.lr_scheduler:
-        model.opt = torch.optim.SGD(model.net.parameters(), lr=args.lr, weight_decay=args.optim_wd, momentum=args.optim_mom)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(model.opt, [35, 45], gamma=0.1, verbose=False)
-        return scheduler
+        return SequentialCIFAR10LabelPoisoning.get_batch_size()

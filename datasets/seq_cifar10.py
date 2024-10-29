@@ -16,7 +16,7 @@ from torchvision.datasets import CIFAR10
 from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
+from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, RandomNoise, PixelPermutation, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -29,11 +29,7 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
         self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
-        """
-        Gets the requested element from the dataset.
-        :param index: index of the element to be returned
-        :returns: tuple: (image, target) where target is index of the target class.
-        """
+
         img, target = self.data[index], self.targets[index]
 
         # to return a PIL Image
@@ -75,25 +71,16 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
 
 
 class TestCIFAR10(MammothDataset, CIFAR10):
-    """Workaround to avoid printing the already downloaded messages."""
-
     def __init__(self, root, transform, poisoning_transform) -> None:
-        self.root = root
+        self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
         self.poisoning_transform = poisoning_transform
         self.classes = list(range(10))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
-        """
-        Args:
-            index (int): Index
 
-        Returns:
-            tuple: (image, target) where target is index of the target class.
-        """
         img, target = self.data[index], self.targets[index]
 
-        # doing this so that it is consistent with all other datasets
         # to return a PIL Image
         img = Image.fromarray(img)
 
@@ -153,6 +140,8 @@ class SequentialCIFAR10(ContinualDataset):
         GaussianNoise,
         ShotNoise,
         SpeckleNoise,
+        RandomNoise,
+        PixelPermutation,
         Identity,
     ]
 
