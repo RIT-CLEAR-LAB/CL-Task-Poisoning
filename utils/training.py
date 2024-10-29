@@ -144,6 +144,8 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                     break
 
                 inputs, labels, not_aug_inputs = data[0], data[1], data[2]
+                # print(model.device)
+                # exit(0)
                 inputs = inputs.to(model.device)
                 labels = labels.to(model.device)
                 not_aug_inputs = not_aug_inputs.to(model.device)

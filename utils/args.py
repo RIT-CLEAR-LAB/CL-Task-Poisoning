@@ -34,7 +34,7 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--batch_size', type=int,
                         help='Batch size.')
 
-    parser.add_argument('--distributed', type=str, default='no', choices=['no', 'dp', 'ddp'])
+    parser.add_argument('--distributed', type=str, default='dp', choices=['no', 'dp', 'ddp'])
 
     parser.add_argument('--poisoning_type', default=1, choices=[0, 1, 2, 3, 4, -1], type=int,
                         help='Choose the poisoning transform to be applied to training data: \
@@ -75,6 +75,6 @@ def add_rehearsal_args(parser: ArgumentParser) -> None:
                         help='The size of the memory buffer.')
     parser.add_argument('--minibatch_size', type=int,
                         help='The batch size of the memory buffer.')
-    parser.add_argument('--buffer_mode', default='balanced', type=str,
-                        choices=['ring', 'reservoir', 'balanced'], 
+    parser.add_argument('--buffer_mode', default='reservoir', type=str,
+                        choices=['ring', 'reservoir', 'balanced', 'reservoir_batch'], 
                         help='The method for buffer sampling.')

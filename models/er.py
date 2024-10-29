@@ -39,7 +39,7 @@ class Er(ContinualModel):
             labels = torch.cat((labels, buf_labels))
 
         outputs = self.net(inputs)
-        loss = self.loss(outputs, labels)
+        loss = self.loss(outputs, labels.long())
         loss.backward()
         self.opt.step()
 

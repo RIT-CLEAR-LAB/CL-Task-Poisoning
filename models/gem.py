@@ -6,10 +6,10 @@
 
 import numpy as np
 import torch
-try:
-    import quadprog
-except BaseException:
-    print('Warning: GEM and A-GEM cannot be used on Windows (quadprog required)')
+# try:
+#     import quadprog
+# except BaseException:
+#     print('Warning: GEM and A-GEM cannot be used on Windows (quadprog required)')
 
 from models.utils.continual_model import ContinualModel
 from utils.args import add_management_args, add_experiment_args, add_rehearsal_args, ArgumentParser
@@ -128,6 +128,7 @@ class Gem(ContinualModel):
         )
 
     def observe(self, inputs, labels, not_aug_inputs):
+        # print('we use agem!!!!!!!!!!!!!!!!!!!')
 
         if not self.buffer.is_empty():
             buf_inputs, buf_labels, buf_task_labels = self.buffer.get_data(

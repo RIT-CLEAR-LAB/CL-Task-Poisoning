@@ -111,8 +111,8 @@ class Buffer:
     The memory buffer of rehearsal method.
     """
 
-    def __init__(self, buffer_size, device, n_tasks=None, mode='balanced'):
-        assert mode in ('ring', 'reservoir', 'balanced')
+    def __init__(self, buffer_size, device, n_tasks=None, mode='reservoir'):
+        assert mode in ('ring', 'reservoir', 'balanced', 'reservoir_batch')
         self.mode = mode
         self.buffer_size = buffer_size
         self.device = device
@@ -160,26 +160,28 @@ class Buffer:
         """
         if not hasattr(self, 'examples'):
             self.init_tensors(examples, labels, logits, task_labels, original_labels)
-
-        for i in range(examples.shape[0]):
-            if self.mode == 'reservoir' or self.mode == 'ring':
-                index = reservoir(self.num_seen_examples, self.buffer_size, self.current_size)
-            elif self.mode == 'balanced':
-                index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.current_size, self.labels)
-            else:
-                raise ValueError('Invalid mode')
-            self.num_seen_examples += 1
-            if index >= 0:
-                self.current_size = min(self.current_size + 1, self.buffer_size)
-                self.examples[index] = examples[i].to(self.device)
-                if labels is not None:
-                    self.labels[index] = labels[i].to(self.device)
-                if logits is not None:
-                    self.logits[index] = logits[i].to(self.device)
-                if task_labels is not None:
-                    self.task_labels[index] = task_labels[i].to(self.device)
-                if original_labels is not None:
-                    self.original_labels[index] = original_labels[i].to(self.device)
+        if self.mode == 'reservoir_batch':
+            self.reservoir_batch(examples, labels, logits, task_labels, original_labels)
+        else:
+            for i in range(examples.shape[0]):
+                if self.mode == 'reservoir' or self.mode == 'ring':
+                    index = reservoir(self.num_seen_examples, self.buffer_size, self.current_size)
+                if self.mode == 'balanced':
+                    index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.current_size, self.labels)
+                else:
+                    raise ValueError('Invalid mode')
+                self.num_seen_examples += 1
+                if index >= 0:
+                    self.current_size = min(self.current_size + 1, self.buffer_size)
+                    self.examples[index] = examples[i].to(self.device)
+                    if labels is not None:
+                        self.labels[index] = labels[i].to(self.device)
+                    if logits is not None:
+                        self.logits[index] = logits[i].to(self.device)
+                    if task_labels is not None:
+                        self.task_labels[index] = task_labels[i].to(self.device)
+                    if original_labels is not None:
+                        self.original_labels[index] = original_labels[i].to(self.device)
 
     def get_data(self, size: int, transform: nn.Module = None, return_index=False) -> Tuple:
         """
@@ -192,7 +194,7 @@ class Buffer:
             size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
 
         cur_size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
-        choice = np.random.choice(cur_size, size=size, replace=False)
+        choice = np.random.choice(np.arange(cur_size), size=size, replace=False)
         if transform is None:
             def transform(x): return x
         ret_tuple = (torch.stack([transform(ee.cpu()) for ee in self.examples[choice]]).to(self.device),)
@@ -205,6 +207,77 @@ class Buffer:
             return ret_tuple
         else:
             return (torch.tensor(choice).to(self.device), ) + ret_tuple
+    
+    def reservoir_batch(self, examples, labels=None, logits=None, task_labels=None, original_labels=None) -> int:
+        """
+        Reservoir sampling algorithm.
+        :param num_seen_examples: the number of seen examples
+        :param buffer_size: the maximum buffer size
+        :return: the target index if the current image is sampled, else -1
+        """
+        batch_size = examples.shape[0]
+
+        # add whatever still fits in the buffer
+        place_left = max(0, self.buffer_size - self.current_size)
+        if place_left:
+            offset = min(place_left, batch_size)
+            self.examples[self.current_size: self.current_size + offset].data.copy_(examples[:offset])
+            if labels is not None:
+                self.labels[self.current_size: self.current_size + offset].data.copy_(labels[:offset])
+            if logits is not None:
+                self.logits[self.current_size: self.current_size + offset].data.copy_(logits[:offset])
+            if task_labels is not None:
+                self.task_labels[self.current_size: self.current_size + offset].data.copy_(task_labels[:offset])
+            if original_labels is not None:
+                self.original_labels[self.current_size: self.current_size + offset].data.copy_(original_labels[:offset])
+            
+            self.current_size += offset
+            self.num_seen_examples += offset
+            # everything was added
+            # if offset == batch_size:
+            #     filled_idx = list(range(self.current_size - offset, self.current_size, ))
+            #     return filled_idx
+
+
+        #TODO: the buffer tracker will have bug when the mem size can't be divided by batch size
+
+        # remove what is already in the buffer
+        examples = examples[place_left:]
+        if labels is not None:
+            labels = labels[place_left:]
+        if logits is not None:
+            logits = logits[place_left:]
+        if task_labels is not None:
+            task_labels = task_labels[place_left:]
+        if original_labels is not None:
+            original_labels = original_labels[place_left:]
+
+        indices = torch.FloatTensor(examples.shape[0]).to(examples.device).uniform_(0, self.num_seen_examples).long()
+        valid_indices = (indices < self.buffer_size).long()
+
+        idx_new_data = valid_indices.nonzero().squeeze(-1)
+        idx_buffer   = indices[idx_new_data]
+
+        self.num_seen_examples += examples.shape[0]
+
+        if idx_buffer.numel() == 0:
+            return []
+
+        assert idx_buffer.max() < self.buffer_size
+        # assert idx_buffer.max() < self.buffer_task.size(0)
+        assert idx_new_data.max() < examples.shape[0]
+
+        idx_map = {idx_buffer[i].item(): idx_new_data[i].item() for i in range(idx_buffer.size(0))}
+        self.examples[list(idx_map.keys())] = examples[list(idx_map.values())]
+        if labels is not None:
+            self.labels[list(idx_map.keys())] = labels[list(idx_map.values())]
+        if logits is not None:
+            self.logits[list(idx_map.keys())] = logits[list(idx_map.values())]
+        if task_labels is not None:
+            self.task_labels[list(idx_map.keys())] = task_labels[list(idx_map.values())]
+        if original_labels is not None:
+            self.original_labels[list(idx_map.keys())] = original_labels[list(idx_map.values())]
+
 
     def get_data_by_index(self, indexes, transform: nn.Module = None) -> Tuple:
         """
