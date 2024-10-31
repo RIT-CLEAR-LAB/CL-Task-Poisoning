@@ -9,7 +9,8 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import numpy as np
 
-from backbone.ResNet18 import resnet18
+from backbone.ResNet18_BBB import resnet18_bbb as resnet18
+# from backbone.ResNet18 import resnet18
 from PIL import Image
 from torchvision.datasets import CIFAR10
 
@@ -182,6 +183,8 @@ class SequentialCIFAR10(ContinualDataset):
         return resnet18(SequentialCIFAR10.N_CLASSES_PER_TASK
                         * SequentialCIFAR10.N_TASKS)
 
+
+    
     @staticmethod
     def get_loss():
         return F.cross_entropy
