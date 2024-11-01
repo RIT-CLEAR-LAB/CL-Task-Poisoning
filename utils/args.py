@@ -36,10 +36,11 @@ def add_experiment_args(parser: ArgumentParser) -> None:
 
     parser.add_argument('--distributed', type=str, default='no', choices=['no', 'dp', 'ddp'])
 
-    parser.add_argument('--poisoning_type', default=-1, choices=[-1, 0, 1, 2, 3, 4], type=int,
-                        help='Choose the poisoning transform to be applied to training data: \
-                        Defocus Blur-> 0, Gaussian Noise-> 1, Shot Noise-> 2, Speckle Noise-> 3, Identity (No transform) -> 4 \
-                        If set to -1 (default), no tasks will be poisoned.')
+    parser.add_argument("--poisoning_type", default=-1, choices=[-1, 0, 1, 2, 3, 4, 5, 6], type=int,
+                        help="Choose the poisoning transform to be applied to training data: \
+                        Defocus Blur -> 0, Gaussian Noise -> 1, Shot Noise -> 2, Speckle Noise -> 3, \
+                        Random Noise -> 4, Pixel Permutation -> 5, Identity (No transform) -> 6 \
+                        If set to -1 (default), no poisoning will be applied.")
     parser.add_argument('--poisoning_severity', default=1, choices=[1, 2, 3, 4, 5], type=int,
                         help='Choose the intensity of the poisoning transform:')
     parser.add_argument('--n_poisonings', default=None, type=int,

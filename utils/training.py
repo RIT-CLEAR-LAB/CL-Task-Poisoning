@@ -184,7 +184,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
     with open(f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
               'w') as jsonfile:
-        json.dump({'task_accuracies': results}, jsonfile)
+        json.dump({"cil_accuracies": results, "til_accuracies": results_mask_classes}, jsonfile)
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)

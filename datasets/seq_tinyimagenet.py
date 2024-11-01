@@ -16,7 +16,7 @@ from PIL import Image
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
 from utils.conf import base_path_dataset as base_path
-from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, Identity
+from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, RandomNoise, PixelPermutation, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -61,7 +61,6 @@ class TrainTinyImagenet(MammothDataset):
     def __getitem__(self, index):
         img, target = self.data[index], self.targets[index]
 
-        # doing this so that it is consistent with all other datasets
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
 
@@ -115,7 +114,6 @@ class TestTinyImagenet(MammothDataset):
     def __getitem__(self, index):
         img, target = self.data[index], self.targets[index]
 
-        # doing this so that it is consistent with all other datasets
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
 
@@ -180,6 +178,8 @@ class SequentialTinyImagenet(ContinualDataset):
         GaussianNoise,
         ShotNoise,
         SpeckleNoise,
+        RandomNoise,
+        PixelPermutation,
         Identity,
     ]
 
