@@ -101,8 +101,8 @@ def main(args=None):
     args.conf_jobnum = str(uuid.uuid4())
     args.conf_timestamp = str(datetime.datetime.now())
     args.conf_host = socket.gethostname()
-    print(args)
-    exit(0)
+    # print(args)
+    # exit(0)
     dataset = get_dataset(args)
 
 

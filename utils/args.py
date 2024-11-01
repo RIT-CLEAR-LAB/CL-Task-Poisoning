@@ -75,6 +75,6 @@ def add_rehearsal_args(parser: ArgumentParser) -> None:
                         help='The size of the memory buffer.')
     parser.add_argument('--minibatch_size', type=int,
                         help='The batch size of the memory buffer.')
-    parser.add_argument('--buffer_mode', default='reservoir', type=str,
+    parser.add_argument('--buffer_mode', default='balanced', type=str,
                         choices=['ring', 'reservoir', 'balanced', 'reservoir_batch'], 
                         help='The method for buffer sampling.')

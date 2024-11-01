@@ -166,7 +166,7 @@ class Buffer:
             for i in range(examples.shape[0]):
                 if self.mode == 'reservoir' or self.mode == 'ring':
                     index = reservoir(self.num_seen_examples, self.buffer_size, self.current_size)
-                if self.mode == 'balanced':
+                elif self.mode == 'balanced':
                     index = balanced_reservoir_sampling(self.num_seen_examples, self.buffer_size, self.current_size, self.labels)
                 else:
                     raise ValueError('Invalid mode')

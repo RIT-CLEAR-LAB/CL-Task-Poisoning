@@ -136,7 +136,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
 
         scheduler = dataset.get_scheduler(model, args)
-        for epoch in range(model.args.n_epochs):
+        import tqdm
+        for epoch in tqdm.tqdm(range(model.args.n_epochs)):
+        # for epoch in range(model.args.n_epochs):
             if args.model == 'joint':
                 continue
             for i, data in enumerate(train_loader):
@@ -183,10 +185,14 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                   **{f'RESULT_task_acc_{i}': a for i, a in enumerate(accs[1])}}
 
             wandb.log(d2)
-
-    with open(f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
-              'w') as jsonfile:
-        json.dump({'task_accuracies': results}, jsonfile)
+    try:
+        with open(f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-{dataset.SETTING}-poisoning-{args.poisoning_type}-task-accuracies.json",
+                'w') as jsonfile:
+            json.dump({'task_accuracies': results}, jsonfile)
+    except:
+        with open(f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
+                'w') as jsonfile:
+            json.dump({'task_accuracies': results}, jsonfile)
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)

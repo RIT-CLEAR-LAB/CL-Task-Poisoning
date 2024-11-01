@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.functional import avg_pool2d, relu
 import torchbnn as bnn  # You need to install torchbnn for Bayesian layers
-from backbone import MammothBackbone, register_backbone
+from backbone import MammothBackbone
 
 def conv3x3(in_planes: int, out_planes: int, stride: int = 1) -> F.conv2d:
     """
@@ -38,15 +38,15 @@ class BayesianBasicBlock(nn.Module):
         super(BayesianBasicBlock, self).__init__()
         self.return_prerelu = False
         # Replace conv layers with Bayesian Conv2d
-        self.conv1 = bnn.BayesConv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, prior_mu=prior_mu, prior_sigma=prior_sigma)
+        self.conv1 = bnn.BayesConv2d(prior_mu=prior_mu, prior_sigma=prior_sigma, in_channels=in_planes, out_channels=planes, kernel_size=3, stride=stride, padding=1)
         self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = bnn.BayesConv2d(planes, planes, kernel_size=3, stride=1, padding=1, prior_mu=prior_mu, prior_sigma=prior_sigma)
+        self.conv2 = bnn.BayesConv2d(prior_mu=prior_mu, prior_sigma=prior_sigma, in_channels=planes, out_channels=planes, kernel_size=3, stride=1, padding=1)  # Corrected here
         self.bn2 = nn.BatchNorm2d(planes)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion * planes:
             self.shortcut = nn.Sequential(
-                bnn.BayesConv2d(in_planes, self.expansion * planes, kernel_size=1, stride=stride, bias=False, prior_mu=prior_mu, prior_sigma=prior_sigma),
+                bnn.BayesConv2d(prior_mu=prior_mu, prior_sigma=prior_sigma, in_channels=in_planes, out_channels=self.expansion * planes, kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(self.expansion * planes)
             )
 
@@ -93,7 +93,7 @@ class BayesianResNet(MammothBackbone):
         self.block = block
         self.num_classes = num_classes
         self.nf = nf
-        self.conv1 = bnn.BayesConv2d(3, nf * 1, kernel_size=3, stride=1, padding=1, prior_mu=prior_mu, prior_sigma=prior_sigma)
+        self.conv1 = bnn.BayesConv2d(prior_mu=prior_mu, prior_sigma=prior_sigma, in_channels=3, out_channels=nf * 1, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(nf * 1)
         self.layer1 = self._make_layer(block, nf * 1, num_blocks[0], stride=1)
         self.layer2 = self._make_layer(block, nf * 2, num_blocks[1], stride=2)
@@ -176,7 +176,6 @@ class BayesianResNet(MammothBackbone):
         raise NotImplementedError("Unknown return type. Must be in ['out', 'features', 'both'] but got {}".format(returnt))
 
 # Register the Bayesian ResNet18 model
-@register_backbone("bayesian_resnet18")
 def bayesian_resnet18(num_classes: int, num_filters: int = 64, prior_mu=0.0, prior_sigma=0.1) -> BayesianResNet:
     """
     Instantiates a Bayesian ResNet18 network.
@@ -191,7 +190,6 @@ def bayesian_resnet18(num_classes: int, num_filters: int = 64, prior_mu=0.0, pri
     return BayesianResNet(BayesianBasicBlock, [2, 2, 2, 2], num_classes, num_filters, prior_mu, prior_sigma)
 
 # Register the Bayesian ResNet34 model
-@register_backbone("bayesian_resnet34")
 def bayesian_resnet34(num_classes: int, num_filters: int = 64, prior_mu=0.0, prior_sigma=0.1) -> BayesianResNet:
     """
     Instantiates a Bayesian ResNet34 network.
