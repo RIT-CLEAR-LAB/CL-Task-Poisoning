@@ -151,10 +151,15 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 if hasattr(dataset.train_loader.dataset, 'logits'):
                     logits = data[-1]
                     logits = logits.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits) + model.net.kl_loss()
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits) 
                 else:
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs) + model.net.kl_loss()
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs)
+                
+                kl_loss = model.net.kl_loss().detach().numpy()*0.01
+                loss = loss + kl_loss
                 assert not math.isnan(loss)
+                
+            
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
             if scheduler is not None:

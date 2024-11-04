@@ -38,7 +38,7 @@ class BBBConv2d(nn.Module):
         else:
             self.register_parameter('bias_mu', None)
             self.register_parameter('bias_rho', None)
-
+        self.W_sigma = torch.log1p(torch.exp(self.W_rho))
         self.reset_parameters()
 
     def reset_parameters(self):

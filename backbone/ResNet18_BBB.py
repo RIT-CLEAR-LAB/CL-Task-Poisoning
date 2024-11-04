@@ -118,16 +118,18 @@ class ResNetBBB(MammothBackbone):
 
         raise NotImplementedError("Unknown return type")
     
-    def kl_loss(self) -> torch.Tensor:
-        """
-        Calculate the total KL divergence loss across all Bayesian layers.
-        :return: Total KL divergence loss
-        """
-        kl_loss = 0.0
+    def kl_loss(self):
+        total_kl = 0.0
+        total_params = 0
         for module in self.modules():
             if isinstance(module, BBBConv2d):
-                kl_loss += module.kl_loss()
-        return kl_loss
+                total_kl += module.kl_loss().cpu()
+                total_params += sum(p.numel() for p in module.parameters())
+        return total_kl / total_params
+
+
+
+
 
 
 def resnet18_bbb(nclasses: int, nf: int = 64, priors=None) -> ResNetBBB:
