@@ -183,8 +183,6 @@ class SequentialCIFAR10(ContinualDataset):
         return resnet18(SequentialCIFAR10.N_CLASSES_PER_TASK
                         * SequentialCIFAR10.N_TASKS)
 
-
-    
     @staticmethod
     def get_loss():
         return F.cross_entropy

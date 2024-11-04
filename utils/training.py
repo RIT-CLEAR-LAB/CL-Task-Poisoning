@@ -151,9 +151,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 if hasattr(dataset.train_loader.dataset, 'logits'):
                     logits = data[-1]
                     logits = logits.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits) + model.net.kl_loss()
                 else:
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs) + model.net.kl_loss()
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
