@@ -72,6 +72,22 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
                 possible_labels = [cls for cls in classes if cls != original_label]
                 self.targets[i] = np.random.choice(possible_labels)
 
+    def apply_past_label_flip_poisoning(self, poisoned_classes: list, current_classes: list):
+        if len(set(self.classes).union(poisoned_classes)) == 0:
+            return
+        self.poisoned_classes.extend(poisoned_classes)
+
+        if len(poisoned_classes) < 2: 
+            raise ValueError('At least 2 poisoned classes required to randomly switch labels between them')
+
+        switch_prob = [0.0, 0.25, 0.5, 0.75, 1.0][self.poisoning_severity - 1]
+
+        for i in range(len(self.targets)):
+            original_label = self.targets[i]
+            if original_label in poisoned_classes and np.random.rand() < switch_prob:
+                possible_labels = [cls for cls in current_classes]
+                self.targets[i] = np.random.choice(possible_labels)
+
     def prepare_normal_data(self):
         pass
 

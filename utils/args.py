@@ -44,7 +44,11 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--poisoning_severity', default=1, choices=[1, 2, 3, 4, 5], type=int,
                         help='Choose the intensity of the poisoning transform:')
     parser.add_argument('--n_poisonings', default=None, type=int,
-                        help='number of poisonings created when creating evenly spaced drfits')
+                        help='number of poisonings created when creating evenly spaced poisonings')
+    parser.add_argument('--n_past_poisonings', default=None, type=int,
+                        help='number of past label poisonings created when creating evenly spaced poisonings')
+    parser.add_argument('--poisoning_percentage', default=None, choices=list(range(101)), type=int, 
+                        help='Choose the percentage (0 ~ 100) of poisoned samples to be included in training batch')
     parser.add_argument('--classes_per_poisoning', type=int, default=0,
                         help='Number of classes that can be poisoned at once with n_poisonings. \
                         If set to 0 (default), all previous classes will be poisoned.')
