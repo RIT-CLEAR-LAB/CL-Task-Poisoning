@@ -43,6 +43,8 @@ def add_experiment_args(parser: ArgumentParser) -> None:
                         If set to -1 (default), no poisoning will be applied.")
     parser.add_argument('--poisoning_severity', default=1, choices=[1, 2, 3, 4, 5], type=int,
                         help='Choose the intensity of the poisoning transform:')
+    parser.add_argument('--anomaly_filtering', default=0, choices=[0, 1], type=int,
+                        help='Choose to enable anomaly filtering')
     parser.add_argument('--n_poisonings', default=None, type=int,
                         help='number of poisonings created when creating evenly spaced poisonings')
     parser.add_argument('--n_past_poisonings', default=None, type=int,

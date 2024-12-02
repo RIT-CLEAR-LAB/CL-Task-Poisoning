@@ -14,6 +14,7 @@ import torch
 from datasets import get_dataset
 from datasets.utils.continual_dataset import ContinualDataset
 from models.utils.continual_model import ContinualModel
+from anomaly_detection import detect_anomaly
 from utils.loggers import *
 from utils.status import ProgressBar
 
@@ -144,7 +145,10 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             results[t-1] = results[t-1] + accs[0]
             if dataset.SETTING == 'class-il':
                 results_mask_classes[t-1] = results_mask_classes[t-1] + accs[1]
-
+        if args.anomaly_filtering == 1:
+            anomaly_detected = detect_anomaly(dataset, model)
+            if anomaly_detected is not None:
+                print(f"Anomaly Measure: {anomaly_detected}")
         scheduler = dataset.get_scheduler(model, args)
         for epoch in range(model.args.n_epochs):
             if args.model == 'joint':
