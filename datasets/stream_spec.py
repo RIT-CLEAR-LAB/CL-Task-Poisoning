@@ -10,6 +10,7 @@ class StreamSpecification:
         n_classes: int,
         random_seed: int = None,
         n_poisonings: Union[int, None] = None,
+        n_past_poisonings: Union[int, None] = None,
         classes_per_poisoning: int = 0,
     ) -> None:
         """
@@ -20,21 +21,31 @@ class StreamSpecification:
         n_classes - number of all classes in dataset
         random_seed - random seed used for experiments
         n_poisonings - number of poisonings created in whole task stream
-        classes_per_poisoning - number of classes that poisoning is applied to with n_poisonings
+        n_past_poisonings - number of past label poisonings created in whole task stream
+        classes_per_poisoning - number of classes that poisoning is applied to
         """
         assert n_tasks >= 2, "need at least two tasks for continual learning"
-        assert n_poisonings is not None, "must specify number of tasks to poison"
+        assert n_poisonings is not None or n_past_poisonings is not None, "must specify number of tasks to poison"
+
+        if n_poisonings is not None:
+            assert n_past_poisonings == None, 'you must select either n_poisonings or n_past_poisonings argument (can not use both together)'
+        if n_past_poisonings is not None:
+            assert n_poisonings == None, 'you must select either n_poisonings or n_past_poisonings argument (can not use both together)'
 
         self.n_tasks = n_tasks
         self.n_classes = n_classes
         self.random_seed = random_seed
         self.n_poisonings = n_poisonings
+        self.n_past_poisonings = n_past_poisonings
         self.classes_per_poisoning = classes_per_poisoning
 
         self._new_classes: list[list[int]] = list()
         self._poisoned_classes: list[list[int]] = list()
+
         if n_poisonings is not None:
             self.create_n_poisonings()
+        elif n_past_poisonings is not None:
+            self.create_n_past_poisonings()
 
         self.current_task = 0
 
@@ -56,6 +67,26 @@ class StreamSpecification:
                 self._new_classes.append(new_task_classes[:-self.classes_per_poisoning])
             else:
                 self._new_classes.append(new_task_classes)
+                self._poisoned_classes.append([])
+
+    def create_n_past_poisonings(self):
+        assert self.n_past_poisonings < self.n_tasks, "# poisonings has to be less than # tasks"
+
+        poisoning_interval = self.n_tasks // (self.n_past_poisonings + 1)
+        poisoning_indices = list(np.linspace(poisoning_interval, self.n_tasks, num=self.n_past_poisonings, endpoint=False, dtype=int))
+        print('Creating poisonings at tasks: ', poisoning_indices)
+
+        classes_per_task = self.n_classes // self.n_tasks
+        poisoning_begin_idx = 0
+        for t in range(self.n_tasks):
+            new_classes = list(range(classes_per_task * t, classes_per_task * (t + 1)))
+            self._new_classes.append(new_classes)
+            if t in poisoning_indices:
+                poisoned_classes = list(range(poisoning_begin_idx, classes_per_task * t))
+                poisoned_classes = poisoned_classes[-min(self.classes_per_poisoning, len(poisoned_classes)):]
+                self._poisoned_classes.append(poisoned_classes)
+                poisoning_begin_idx = classes_per_task * t
+            else:
                 self._poisoned_classes.append([])
 
     def __next__(self):

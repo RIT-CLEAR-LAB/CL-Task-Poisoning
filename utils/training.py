@@ -36,6 +36,13 @@ def mask_classes(outputs: torch.Tensor, dataset: ContinualDataset, k: int) -> No
     outputs[:, (k + 1) * dataset.N_CLASSES_PER_TASK:
             dataset.N_TASKS * dataset.N_CLASSES_PER_TASK] = -float('inf')
 
+def get_unique_labels(test_loader):
+    labels = []
+    for _, batch_labels in test_loader:
+        labels.extend(batch_labels.numpy())
+
+    unique_labels = torch.unique(torch.tensor(labels))
+    return unique_labels.tolist()
 
 def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tuple[list, list]:
     """
@@ -54,6 +61,9 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
         correct, correct_mask_classes, total = 0.0, 0.0, 0.0
         predictions = list()
         all_labels = list()
+
+        # unique_labels = get_unique_labels(test_loader)
+        # print("Unique labels in the test loader:", unique_labels)
 
         for data in test_loader:
             with torch.no_grad():
