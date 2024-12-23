@@ -16,7 +16,7 @@ import numpy as np
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
 from utils.conf import base_path_dataset as base_path
-from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, RandomNoise, PixelPermutation, Identity
+from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, PixelPermutation, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -47,24 +47,24 @@ class TrainCIFAR100(MammothDataset, CIFAR100):
 
         return img, target, not_aug_img
 
-    def select_classes(self, classes_list: list[int]):
-        if len(classes_list) == 0:
+    def select_classes(self, current_classes: list[int]):
+        if len(current_classes) == 0:
             self.data = np.array([])
             self.targets = np.array([])
             self.classes = []
             return
 
         mask = np.zeros_like(np.array(self.targets))
-        for label in classes_list:
+        for label in current_classes:
             mask = np.logical_or(mask, np.array(self.targets) == label)
         self.data = self.data[mask]
         self.targets = np.array(self.targets)[mask]
-        self.classes = classes_list
+        self.classes = current_classes
 
-    def apply_poisoning(self, classes: list):
-        if len(set(self.classes).union(classes)) == 0:
+    def apply_poisoning(self, poisoned_classes: list):
+        if len(set(self.classes).union(poisoned_classes)) == 0:
             return
-        self.poisoned_classes.extend(classes)
+        self.poisoned_classes.extend(poisoned_classes)
 
     def prepare_normal_data(self):
         pass
@@ -91,24 +91,22 @@ class TestCIFAR100(MammothDataset, CIFAR100):
 
         return img, target
 
-    def select_classes(self, classes_list: list[int]):
-        if len(classes_list) == 0:
+    def select_classes(self, current_classes: list[int]):
+        if len(current_classes) == 0:
             self.data = np.array([])
             self.targets = np.array([])
             self.classes = []
             return
 
         mask = np.zeros_like(np.array(self.targets))
-        for label in classes_list:
+        for label in current_classes:
             mask = np.logical_or(mask, np.array(self.targets) == label)
         self.data = self.data[mask]
         self.targets = np.array(self.targets)[mask]
-        self.classes = classes_list
+        self.classes = current_classes
 
-    def apply_poisoning(self, classes: list):
-        if len(set(self.classes).union(classes)) == 0:
-            return
-        self.poisoned_classes.extend(classes)
+    def apply_poisoning(self, poisoned_classes: list):
+        pass
 
     def prepare_normal_data(self):
         pass
@@ -140,26 +138,38 @@ class SequentialCIFAR100(ContinualDataset):
         GaussianNoise,
         ShotNoise,
         SpeckleNoise,
-        RandomNoise,
         PixelPermutation,
         Identity,
     ]
 
     def get_dataset(self, train=True):
-        """returns native version of represented dataset"""
         POISONING_SEVERITY = self.args.poisoning_severity
-        POISONING = transforms.Compose([
-            self.POISONING_TYPES[self.args.poisoning_type](POISONING_SEVERITY),
-            transforms.ToPILImage()
-        ])
-
+        POISONING = transforms.Compose(
+            [
+                self.POISONING_TYPES[
+                    (
+                        self.args.image_poisoning_type
+                        if self.args.image_poisoning_type is not None
+                        else -1
+                    )
+                ](POISONING_SEVERITY),
+                transforms.ToPILImage(),
+            ]
+        )
 
         if train:
-            return TrainCIFAR100(base_path() + 'CIFAR100',
-                                 transform=self.TRANSFORM, not_aug_transform=self.NO_AUG_TRANSFORM, poisoning_transform=POISONING)
+            return TrainCIFAR100(
+                base_path() + "CIFAR100",
+                transform=self.TRANSFORM,
+                not_aug_transform=self.NO_AUG_TRANSFORM,
+                poisoning_transform=POISONING,
+            )
         else:
-            return TestCIFAR100(base_path() + 'CIFAR100',
-                                transform=self.TEST_TRANSFORM, poisoning_transform=POISONING)
+            return TestCIFAR100(
+                base_path() + "CIFAR100",
+                transform=self.TEST_TRANSFORM,
+                poisoning_transform=POISONING,
+            )
 
     def get_transform(self):
         transform = transforms.Compose(
@@ -188,6 +198,12 @@ class SequentialCIFAR100(ContinualDataset):
         return transform
 
     @staticmethod
+    def get_scheduler(model, args) -> torch.optim.lr_scheduler:
+        model.opt = torch.optim.SGD(model.net.parameters(), lr=args.lr, weight_decay=args.optim_wd, momentum=args.optim_mom)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(model.opt, [35, 45], gamma=0.1, verbose=False)
+        return scheduler
+
+    @staticmethod
     def get_epochs():
         return 50
 
@@ -198,9 +214,3 @@ class SequentialCIFAR100(ContinualDataset):
     @staticmethod
     def get_minibatch_size():
         return SequentialCIFAR100.get_batch_size()
-
-    @staticmethod
-    def get_scheduler(model, args) -> torch.optim.lr_scheduler:
-        model.opt = torch.optim.SGD(model.net.parameters(), lr=args.lr, weight_decay=args.optim_wd, momentum=args.optim_mom)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(model.opt, [35, 45], gamma=0.1, verbose=False)
-        return scheduler
