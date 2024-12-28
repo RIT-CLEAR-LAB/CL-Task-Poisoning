@@ -36,21 +36,24 @@ def add_experiment_args(parser: ArgumentParser) -> None:
 
     parser.add_argument('--distributed', type=str, default='no', choices=['no', 'dp', 'ddp'])
 
-    parser.add_argument("--poisoning_type", default=-1, choices=[-1, 0, 1, 2, 3, 4, 5, 6], type=int,
-                        help="Choose the poisoning transform to be applied to training data: \
+    parser.add_argument('--n_image_poisonings', default=None, type=int,
+                        help='number of image noise poisonings created when creating evenly spaced poisonings.')
+    parser.add_argument("--image_poisoning_type", default=None, choices=[-1, 0, 1, 2, 3, 4, 5], type=int,
+                        help="Choose poisoning transform to be applied to training data with n_image_poisonings: \
                         Defocus Blur -> 0, Gaussian Noise -> 1, Shot Noise -> 2, Speckle Noise -> 3, \
-                        Random Noise -> 4, Pixel Permutation -> 5, Identity (No transform) -> 6 \
+                        Pixel Permutation -> 4, Identity (No transform) -> 5 \
                         If set to -1 (default), no poisoning will be applied.")
+
+    parser.add_argument('--n_label_flip_poisonings', default=None, type=int,
+                        help='number of past label flip poisonings created when creating evenly spaced poisonings.')
+    parser.add_argument('--label_flip_percentage', default=None, choices=list(range(101)), type=int, 
+                        help='Choose the percentage (0 ~ 100) of poisoned samples to be included \
+                        in training batch with n_label_flip_poisonings.')
+
     parser.add_argument('--poisoning_severity', default=1, choices=[1, 2, 3, 4, 5], type=int,
-                        help='Choose the intensity of the poisoning transform:')
-    parser.add_argument('--n_poisonings', default=None, type=int,
-                        help='number of poisonings created when creating evenly spaced poisonings')
-    parser.add_argument('--n_past_poisonings', default=None, type=int,
-                        help='number of past label poisonings created when creating evenly spaced poisonings')
-    parser.add_argument('--poisoning_percentage', default=None, choices=list(range(101)), type=int, 
-                        help='Choose the percentage (0 ~ 100) of poisoned samples to be included in training batch')
+                        help='Choose the intensity of the poisoning transform (1 ~ 5).')
     parser.add_argument('--classes_per_poisoning', type=int, default=0,
-                        help='Number of classes that can be poisoned at once with n_poisonings. \
+                        help='Number of classes that can be poisoned at once. \
                         If set to 0 (default), all previous classes will be poisoned.')
 
 def add_management_args(parser: ArgumentParser) -> None:

@@ -123,7 +123,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         dataset_copy = get_dataset(args)
         for t in range(dataset.N_TASKS):
             model.net.train()
-            if args.poisoning_type == -1:
+            if args.n_image_poisonings is None and args.n_label_flip_poisonings is None:
                 _, _ = dataset_copy.get_data_loaders()
             else:
                 _, _ = dataset_copy.get_poisoned_data_loaders()
@@ -133,7 +133,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
     print(file=sys.stderr)
     for t in range(dataset.N_TASKS):
         model.net.train()
-        if args.poisoning_type == -1:
+        if args.n_image_poisonings is None and args.n_label_flip_poisonings is None:
             train_loader, _ = dataset.get_data_loaders()
         else:
             train_loader, _ = dataset.get_poisoned_data_loaders()
@@ -192,8 +192,12 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
             wandb.log(d2)
 
-    with open(f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-poisoning-{args.poisoning_type}-task-accuracies.json",
-              'w') as jsonfile:
+    log_filename = (
+        f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-{args.model}-buf-{args.buffer_size}-severity-{args.poisoning_severity}-cpp-{args.classes_per_poisoning}"
+        f"{'-poisoning-type-' + str(args.image_poisoning_type) if args.n_image_poisonings is not None else '-poisoning-percentage-' + str(args.label_flip_percentage) if args.n_label_flip_poisonings is not None else '-no-poisoning'}.json"
+    )
+
+    with open(log_filename, "w") as jsonfile:
         json.dump({"cil_accuracies": results, "til_accuracies": results_mask_classes}, jsonfile)
 
     if not args.disable_log and not args.ignore_other_metrics:

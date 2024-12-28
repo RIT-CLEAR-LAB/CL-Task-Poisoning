@@ -4,28 +4,27 @@
 # LICENSE file in the root directory of this source tree.
 
 from typing import Tuple
-
 import torch.nn.functional as F
+import torch.optim
 import torchvision.transforms as transforms
-import numpy as np
-
 from backbone.ResNet18 import resnet18
 from PIL import Image
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR100
+import numpy as np
 
-from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
+from utils.conf import base_path_dataset as base_path
 from datasets.mammoth_dataset import MammothDataset
 
 
-class TrainCIFAR10LabelPoisoning(MammothDataset, CIFAR10):
+class TrainCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
     def __init__(self, root: str, transform, not_aug_transform, poisoning_severity) -> None:
         self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(root, train=True, transform=transform, target_transform=None, download=not self._check_integrity())
         self.not_aug_transform = not_aug_transform
         self.poisoning_severity = poisoning_severity
-        self.classes = list(range(10))
+        self.classes = list(range(100))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
 
@@ -62,7 +61,7 @@ class TrainCIFAR10LabelPoisoning(MammothDataset, CIFAR10):
         self.poisoned_classes.extend(poisoned_classes)
 
         if len(poisoned_classes) < 2: 
-            raise ValueError('At least 2 poisoned classes required to randomly switch labels between them')
+            raise ValueError('At least 2 poisoned classes required to switch labels')
 
         switch_prob = [0.0, 0.25, 0.5, 0.75, 1.0][self.poisoning_severity - 1]
 
@@ -76,12 +75,12 @@ class TrainCIFAR10LabelPoisoning(MammothDataset, CIFAR10):
         pass
 
 
-class TestCIFAR10LabelPoisoning(MammothDataset, CIFAR10):
+class TestCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
     def __init__(self, root, transform, poisoning_severity) -> None:
         self.root = root    # Workaround to avoid printing the already downloaded messages
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
         self.poisoning_severity = poisoning_severity
-        self.classes = list(range(10))
+        self.classes = list(range(100))
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
 
@@ -114,23 +113,23 @@ class TestCIFAR10LabelPoisoning(MammothDataset, CIFAR10):
         pass
 
 
-class SequentialCIFAR10LabelPoisoning(ContinualDataset):
+class SequentialCIFAR100LabelPoisoning(ContinualDataset):
 
-    NAME = 'seq-cifar10-label-poisoning'
+    NAME = 'seq-cifar100-label-poisoning'
     SETTING = 'class-il'
-    N_CLASSES_PER_TASK = 2
-    N_TASKS = 5
+    N_CLASSES_PER_TASK = 5
+    N_TASKS = 20
 
     TRANSFORM = transforms.Compose([
         transforms.RandomCrop(32, padding=4),
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
     ])
 
     TEST_TRANSFORM = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2615))
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
     ])
 
     NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
@@ -139,15 +138,15 @@ class SequentialCIFAR10LabelPoisoning(ContinualDataset):
         POISONING_SEVERITY = self.args.poisoning_severity
 
         if train:
-            return TrainCIFAR10LabelPoisoning(
-                base_path() + "CIFAR10",
+            return TrainCIFAR100LabelPoisoning(
+                base_path() + "CIFAR100",
                 transform=self.TRANSFORM,
                 not_aug_transform=self.NO_AUG_TRANSFORM,
                 poisoning_severity=POISONING_SEVERITY,
             )
         else:
-            return TestCIFAR10LabelPoisoning(
-                base_path() + "CIFAR10",
+            return TestCIFAR100LabelPoisoning(
+                base_path() + "CIFAR100",
                 transform=self.TEST_TRANSFORM,
                 poisoning_severity=POISONING_SEVERITY,
             )
@@ -159,8 +158,8 @@ class SequentialCIFAR10LabelPoisoning(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        return resnet18(SequentialCIFAR10LabelPoisoning.N_CLASSES_PER_TASK
-                        * SequentialCIFAR10LabelPoisoning.N_TASKS)
+        return resnet18(SequentialCIFAR100LabelPoisoning.N_CLASSES_PER_TASK
+                        * SequentialCIFAR100LabelPoisoning.N_TASKS)
 
     @staticmethod
     def get_loss():
@@ -168,19 +167,21 @@ class SequentialCIFAR10LabelPoisoning(ContinualDataset):
 
     @staticmethod
     def get_normalization_transform():
-        transform = transforms.Normalize((0.4914, 0.4822, 0.4465),
-                                         (0.2470, 0.2435, 0.2615))
+        transform = transforms.Normalize((0.5071, 0.4867, 0.4408),
+                                         (0.2675, 0.2565, 0.2761))
         return transform
 
     @staticmethod
     def get_denormalization_transform():
-        transform = DeNormalize((0.4914, 0.4822, 0.4465),
-                                (0.2470, 0.2435, 0.2615))
+        transform = DeNormalize((0.5071, 0.4867, 0.4408),
+                                (0.2675, 0.2565, 0.2761))
         return transform
 
     @staticmethod
-    def get_scheduler(model, args):
-        return None
+    def get_scheduler(model, args) -> torch.optim.lr_scheduler:
+        model.opt = torch.optim.SGD(model.net.parameters(), lr=args.lr, weight_decay=args.optim_wd, momentum=args.optim_mom)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(model.opt, [35, 45], gamma=0.1, verbose=False)
+        return scheduler
 
     @staticmethod
     def get_epochs():
@@ -192,4 +193,4 @@ class SequentialCIFAR10LabelPoisoning(ContinualDataset):
 
     @staticmethod
     def get_minibatch_size():
-        return SequentialCIFAR10LabelPoisoning.get_batch_size()
+        return SequentialCIFAR100LabelPoisoning.get_batch_size()

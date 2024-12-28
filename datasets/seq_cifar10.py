@@ -16,7 +16,7 @@ from torchvision.datasets import CIFAR10
 from utils.conf import base_path_dataset as base_path
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
-from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, RandomNoise, PixelPermutation, Identity
+from datasets.transforms.poisoningTransforms import DefocusBlur, GaussianNoise, ShotNoise, SpeckleNoise, PixelPermutation, Identity
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -47,24 +47,24 @@ class TrainCIFAR10(MammothDataset, CIFAR10):
 
         return img, target, not_aug_img
 
-    def select_classes(self, classes_list: list[int]):
-        if len(classes_list) == 0:
+    def select_classes(self, current_classes: list[int]):
+        if len(current_classes) == 0:
             self.data = np.array([])
             self.targets = np.array([])
             self.classes = []
             return
 
         mask = np.zeros_like(np.array(self.targets))
-        for label in classes_list:
+        for label in current_classes:
             mask = np.logical_or(mask, np.array(self.targets) == label)
         self.data = self.data[mask]
         self.targets = np.array(self.targets)[mask]
-        self.classes = classes_list
+        self.classes = current_classes
 
-    def apply_poisoning(self, classes: list):
-        if len(set(self.classes).union(classes)) == 0:
+    def apply_poisoning(self, poisoned_classes: list):
+        if len(set(self.classes).union(poisoned_classes)) == 0:
             return
-        self.poisoned_classes.extend(classes)
+        self.poisoned_classes.extend(poisoned_classes)
 
     def prepare_normal_data(self):
         pass
@@ -91,24 +91,22 @@ class TestCIFAR10(MammothDataset, CIFAR10):
 
         return img, target
 
-    def select_classes(self, classes_list: list[int]):
-        if len(classes_list) == 0:
+    def select_classes(self, current_classes: list[int]):
+        if len(current_classes) == 0:
             self.data = np.array([])
             self.targets = np.array([])
             self.classes = []
             return
 
         mask = np.zeros_like(np.array(self.targets))
-        for label in classes_list:
+        for label in current_classes:
             mask = np.logical_or(mask, np.array(self.targets) == label)
         self.data = self.data[mask]
         self.targets = np.array(self.targets)[mask]
-        self.classes = classes_list
+        self.classes = current_classes
 
-    def apply_poisoning(self, classes: list):
-        if len(set(self.classes).union(classes)) == 0:
-            return
-        self.poisoned_classes.extend(classes)
+    def apply_poisoning(self, poisoned_classes: list):
+        pass
 
     def prepare_normal_data(self):
         pass
@@ -140,7 +138,6 @@ class SequentialCIFAR10(ContinualDataset):
         GaussianNoise,
         ShotNoise,
         SpeckleNoise,
-        RandomNoise,
         PixelPermutation,
         Identity,
     ]
@@ -148,11 +145,18 @@ class SequentialCIFAR10(ContinualDataset):
     def get_dataset(self, train=True):
         """returns native version of represented dataset"""
         POISONING_SEVERITY = self.args.poisoning_severity
-        POISONING = transforms.Compose([
-            self.POISONING_TYPES[self.args.poisoning_type](POISONING_SEVERITY),
-            transforms.ToPILImage()
-        ])
-
+        POISONING = transforms.Compose(
+            [
+                self.POISONING_TYPES[
+                    (
+                        self.args.image_poisoning_type
+                        if self.args.image_poisoning_type is not None
+                        else -1
+                    )
+                ](POISONING_SEVERITY),
+                transforms.ToPILImage(),
+            ]
+        )
 
         if train:
             return TrainCIFAR10(base_path() + 'CIFAR10',

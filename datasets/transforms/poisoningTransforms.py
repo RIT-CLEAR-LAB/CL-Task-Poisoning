@@ -88,24 +88,6 @@ class SpeckleNoise:
         return x.astype(np.uint8)
 
 
-class RandomNoise:
-    def __init__(self, severity=1):
-        self.severity = severity
-
-    def __call__(self, x):
-        return self.random_noise(x, self.severity)
-
-    @staticmethod
-    def random_noise(x, severity):
-        noise_levels = [0.1, 0.2, 0.3, 0.4, 0.5]
-        c = noise_levels[severity - 1]
-
-        x = np.array(x) / 255.0
-        noise = np.random.randn(*x.shape) * c
-        x = np.clip(x + noise, 0, 1) * 255.0
-        return x.astype(np.uint8)
-
-
 class PixelPermutation:
     def __init__(self, severity=1):
         self.severity = severity
