@@ -42,15 +42,15 @@ class ContinualDataset:
                 "The dataset must be initialized with all the required fields."
             )
 
-        if args.n_poisonings or args.n_past_poisonings:
+        if args.n_image_poisonings or args.n_label_flip_poisonings:
             n_tasks = self.N_TASKS
             n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
             self.stream_spec = StreamSpecification(
                 n_tasks,
                 n_classes,
                 random_seed=args.seed,
-                n_poisonings=args.n_poisonings,
-                n_past_poisonings=args.n_past_poisonings,
+                n_image_poisonings=args.n_image_poisonings,
+                n_label_flip_poisonings=args.n_label_flip_poisonings,
                 classes_per_poisoning=args.classes_per_poisoning,
             )
             self.stream_spec_it = iter(self.stream_spec)
@@ -96,22 +96,23 @@ class ContinualDataset:
             poisoned_train_dataset.select_classes(poisoned_classes)
 
             assert (
-                self.args.n_poisonings is not None
-                or self.args.n_past_poisonings is not None
-            ), "Must specify poisoning mechanism: n_poisonings or n_past_poisonings \n \
-                n_poisonings: For poisoning n-th task(s) with image or label flip poisoning \n \
-                n_past_poisonings: For poisoning n-th task(s) with label flip poisoning from previous tasks"
+                self.args.n_image_poisonings is not None
+                or self.args.n_label_flip_poisonings is not None
+            ), "Must specify poisoning mechanism: n_image_poisonings or n_label_flip_poisonings \n \
+                n_image_poisonings: For poisoning n-th task(s) with image poisoning \n \
+                n_label_flip_poisonings: For poisoning n-th task(s) with label flip poisoning from previous tasks"
 
-            if self.args.n_poisonings is not None:
-                poisoned_train_dataset.apply_poisoning(poisoned_classes)                
-            elif self.args.n_past_poisonings is not None:
-                assert self.args.poisoning_percentage is not None, "Must specify percentage of poisoned data (0 ~ 100)"
+            if self.args.n_image_poisonings is not None:
+                assert self.args.image_poisoning_type is not None, "Must specify image poisoning type (-1 ~ 5)"
+                poisoned_train_dataset.apply_poisoning(poisoned_classes)
+            elif self.args.n_label_flip_poisonings is not None:
+                assert self.args.label_flip_percentage is not None, "Must specify percentage of label-flipped data (0 ~ 100)"
                 assert len(train_dataset) > 0, "Need new classes in training data for past label flip poisoning"
 
-                poisoned_train_dataset.apply_past_label_flip_poisoning(poisoned_classes, current_classes)
+                poisoned_train_dataset.apply_poisoning(poisoned_classes, current_classes)
 
                 total_samples = len(train_dataset)
-                num_poisoned_samples = int(total_samples * (self.args.poisoning_percentage / 100))
+                num_poisoned_samples = int(total_samples * (self.args.label_flip_percentage / 100))
                 num_regular_samples = total_samples - num_poisoned_samples
 
                 num_poisoned_samples = min(len(poisoned_train_dataset), num_poisoned_samples)
