@@ -97,7 +97,7 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
     return accs, accs_mask_classes
 
 
-def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> None:
+def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log_filename=None) -> None:
     """
     The training process, including evaluations and loggers.
     :param model: the module to be trained
@@ -191,11 +191,11 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                   **{f'RESULT_task_acc_{i}': a for i, a in enumerate(accs[1])}}
 
             wandb.log(d2)
-
-    log_filename = (
-        f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-{args.model}-buf-{args.buffer_size}-severity-{args.poisoning_severity}-cpp-{args.classes_per_poisoning}"
-        f"{'-poisoning-type-' + str(args.image_poisoning_type) if args.n_image_poisonings is not None else '-poisoning-percentage-' + str(args.label_flip_percentage) if args.n_label_flip_poisonings is not None else '-no-poisoning'}.json"
-    )
+    if log_filename is None:
+        log_filename = (
+            f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-{args.model}-buf-{args.buffer_size}-severity-{args.poisoning_severity}-cpp-{args.classes_per_poisoning}"
+            f"{'-poisoning-type-' + str(args.image_poisoning_type) if args.n_image_poisonings is not None else '-poisoning-percentage-' + str(args.label_flip_percentage) if args.n_label_flip_poisonings is not None else '-no-poisoning'}.json"
+        )
 
     with open(log_filename, "w") as jsonfile:
         json.dump({"cil_accuracies": results, "til_accuracies": results_mask_classes}, jsonfile)

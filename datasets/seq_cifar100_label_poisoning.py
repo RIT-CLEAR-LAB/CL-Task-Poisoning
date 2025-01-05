@@ -194,3 +194,85 @@ class SequentialCIFAR100LabelPoisoning(ContinualDataset):
     @staticmethod
     def get_minibatch_size():
         return SequentialCIFAR100LabelPoisoning.get_batch_size()
+
+class SequentialCIFAR100LabelPoisoning1010(ContinualDataset):
+
+    NAME = 'seq-cifar100-label-poisoning1010'
+    SETTING = 'class-il'
+    N_CLASSES_PER_TASK = 10
+    N_TASKS = 10
+
+    TRANSFORM = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+    ])
+
+    TEST_TRANSFORM = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+    ])
+
+    NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
+
+    def get_dataset(self, train=True):
+        POISONING_SEVERITY = self.args.poisoning_severity
+
+        if train:
+            return TrainCIFAR100LabelPoisoning(
+                base_path() + "CIFAR100",
+                transform=self.TRANSFORM,
+                not_aug_transform=self.NO_AUG_TRANSFORM,
+                poisoning_severity=POISONING_SEVERITY,
+            )
+        else:
+            return TestCIFAR100LabelPoisoning(
+                base_path() + "CIFAR100",
+                transform=self.TEST_TRANSFORM,
+                poisoning_severity=POISONING_SEVERITY,
+            )
+
+    def get_transform(self):
+        transform = transforms.Compose(
+            [transforms.ToPILImage(), self.TRANSFORM])
+        return transform
+
+    @staticmethod
+    def get_backbone():
+        return resnet18(SequentialCIFAR100LabelPoisoning.N_CLASSES_PER_TASK
+                        * SequentialCIFAR100LabelPoisoning.N_TASKS)
+
+    @staticmethod
+    def get_loss():
+        return F.cross_entropy
+
+    @staticmethod
+    def get_normalization_transform():
+        transform = transforms.Normalize((0.5071, 0.4867, 0.4408),
+                                         (0.2675, 0.2565, 0.2761))
+        return transform
+
+    @staticmethod
+    def get_denormalization_transform():
+        transform = DeNormalize((0.5071, 0.4867, 0.4408),
+                                (0.2675, 0.2565, 0.2761))
+        return transform
+
+    @staticmethod
+    def get_scheduler(model, args) -> torch.optim.lr_scheduler:
+        model.opt = torch.optim.SGD(model.net.parameters(), lr=args.lr, weight_decay=args.optim_wd, momentum=args.optim_mom)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(model.opt, [35, 45], gamma=0.1, verbose=False)
+        return scheduler
+
+    @staticmethod
+    def get_epochs():
+        return 50
+
+    @staticmethod
+    def get_batch_size():
+        return 32
+
+    @staticmethod
+    def get_minibatch_size():
+        return SequentialCIFAR100LabelPoisoning.get_batch_size()
