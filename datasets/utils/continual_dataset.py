@@ -42,7 +42,7 @@ class ContinualDataset:
                 "The dataset must be initialized with all the required fields."
             )
 
-        if args.n_image_poisonings or args.n_label_flip_poisonings:
+        if args.n_image_poisonings or args.n_label_flip_poisonings or args.n_backdoor_poisonings:
             n_tasks = self.N_TASKS
             n_classes = self.N_CLASSES_PER_TASK * self.N_TASKS
             self.stream_spec = StreamSpecification(
@@ -51,6 +51,7 @@ class ContinualDataset:
                 random_seed=args.seed,
                 n_image_poisonings=args.n_image_poisonings,
                 n_label_flip_poisonings=args.n_label_flip_poisonings,
+                n_backdoor_poisonings=args.n_backdoor_poisonings,
                 classes_per_poisoning=args.classes_per_poisoning,
             )
             self.stream_spec_it = iter(self.stream_spec)
@@ -98,9 +99,11 @@ class ContinualDataset:
             assert (
                 self.args.n_image_poisonings is not None
                 or self.args.n_label_flip_poisonings is not None
-            ), "Must specify poisoning mechanism: n_image_poisonings or n_label_flip_poisonings \n \
+                or self.args.n_backdoor_poisonings is not None
+            ), "Must specify poisoning mechanism: n_image_poisonings or n_label_flip_poisonings or n_backdoor_poisonings \n \
                 n_image_poisonings: For poisoning n-th task(s) with image poisoning \n \
-                n_label_flip_poisonings: For poisoning n-th task(s) with label flip poisoning from previous tasks"
+                n_label_flip_poisonings: For poisoning n-th task(s) with label flip poisoning from previous tasks \n \
+                n_backdoor_poisonings: For poisoning n-th task(s) with backdoor poisoning"
 
             if self.args.n_image_poisonings is not None:
                 assert self.args.image_poisoning_type is not None, "Must specify image poisoning type (-1 ~ 5)"
@@ -122,6 +125,9 @@ class ContinualDataset:
 
                 test_dataset = self.get_dataset(train=False)
                 test_dataset.select_classes(current_classes)
+            elif self.args.n_backdoor_poisonings is not None:
+                assert self.args.poisoning_rate is not None, "Must specify percentage of backdoor poisoned data (0 ~ 100)"
+                poisoned_train_dataset.apply_poisoning(poisoned_classes)
 
             if train_dataset is not None:
                 train_dataset = torch.utils.data.ConcatDataset([train_dataset, poisoned_train_dataset])
@@ -133,6 +139,9 @@ class ContinualDataset:
 
         train_loader = DataLoader(train_dataset, batch_size=self.args.batch_size, shuffle=True, num_workers=4)
         self.train_loader = train_loader
+
+        if self.args.n_backdoor_poisonings is not None and len(self.test_loaders) > 0:
+            test_dataset.apply_poisoning(current_classes + poisoned_classes)
 
         test_loader = DataLoader(test_dataset, batch_size=self.args.batch_size, shuffle=False, num_workers=4)
         self.test_loaders.append(test_loader)
