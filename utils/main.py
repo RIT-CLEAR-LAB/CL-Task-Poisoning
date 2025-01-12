@@ -14,6 +14,9 @@ import torch
 import datetime
 import uuid
 from argparse import ArgumentParser
+os.environ['TORCHINDUCTOR_CACHE_DIR'] = r"D:\temp\torchinductor_cache"
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
 
 
 mammoth_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # nopep8
@@ -116,6 +119,9 @@ def main(args=None):
     backbone = dataset.get_backbone()
     loss = dataset.get_loss()
     model = get_model(args, backbone, loss, dataset.get_transform())
+    # model = torch.compile(model, mode="max-autotune")
+    # print(model.device)
+    # exit(0)
 
     if args.distributed == 'dp':
         model.net = make_dp(model.net)

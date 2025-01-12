@@ -7,7 +7,7 @@ import torch
 
 from models.utils.continual_model import ContinualModel
 from utils.args import add_management_args, add_experiment_args, add_rehearsal_args, ArgumentParser
-from utils.buffer import Buffer
+from utils.buffer_new import Buffer
 
 
 def get_parser() -> ArgumentParser:
@@ -25,22 +25,32 @@ class Er(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform):
         super(Er, self).__init__(backbone, loss, args, transform)
-        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
+        self.buffer = Buffer(self.net, self.args, self.args.buffer_size, self.device, mode=args.buffer_mode)
+        self.task = 0
+        # self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
 
     def observe(self, inputs, labels, not_aug_inputs):
 
         real_batch_size = inputs.shape[0]
 
         self.opt.zero_grad()
-        if not self.buffer.is_empty():
-            buf_data = self.buffer.get_data(self.args.minibatch_size, transform=self.transform)
-            buf_inputs, buf_labels = buf_data[0], buf_data[1]
-            inputs = torch.cat((inputs, buf_inputs))
-            labels = torch.cat((labels, buf_labels))
-
+        # print(self.device)
+        # exit(0)
+        # with torch.autocast(device_type="cuda", dtype=torch.float16):
         outputs = self.net(inputs)
         loss = self.loss(outputs, labels.long())
+        self.opt.zero_grad()
         loss.backward()
+        if self.task > 0:
+            if self.args.buffer_retrieve_mode == 'aser':
+                buf_data = self.buffer.get_data(self.args.minibatch_size, transform=self.transform, mode = self.args.buffer_retrieve_mode, x = inputs, y = labels)
+            else:
+                buf_data = self.buffer.get_data(self.args.minibatch_size, transform=self.transform, mode = self.args.buffer_retrieve_mode)
+            buf_inputs, buf_labels = buf_data[0], buf_data[1]
+            buf_outputs = self.net(buf_inputs)
+            buf_loss = self.loss(buf_outputs, buf_labels.long())
+            buf_loss.backward()
+
         self.opt.step()
 
         self.buffer.add_data(
@@ -49,3 +59,6 @@ class Er(ContinualModel):
         )
 
         return loss.item()
+    
+    def end_task(self, dataset):
+        self.task += 1

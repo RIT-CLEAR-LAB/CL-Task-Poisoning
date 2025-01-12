@@ -9,6 +9,14 @@ from typing import Tuple
 import numpy as np
 import torch
 import torch.nn as nn
+from utils.retrieve_methods.mir_retrieve import MIR_retrieve
+from utils.retrieve_methods.max_loss_retrieve import Max_loss_retrieve
+from utils.retrieve_methods.minrehersal import MinRehearsalWithReservoir
+from utils.retrieve_methods.min_margin_retrieve import Min_margin_retrieve
+from utils.retrieve_utils import ClassBalancedRandomSampling
+from utils.retrieve_methods.min_logit_retrieve import Min_logit_retrieve
+from utils.retrieve_methods.min_confidence_retrieve import Min_confidence_retrieve
+from utils.retrieve_methods.aser_retrieve import ASER_retrieve
 
 
 def icarl_replay(self, dataset, val_set_split=0):
@@ -111,8 +119,10 @@ class Buffer:
     The memory buffer of rehearsal method.
     """
 
-    def __init__(self, buffer_size, device, n_tasks=None, mode='reservoir'):
+    def __init__(self, model, args, buffer_size, device, n_tasks=None, mode='reservoir'):
         assert mode in ('ring', 'reservoir', 'balanced', 'reservoir_batch')
+        self.args = args
+        self.model = model
         self.mode = mode
         self.buffer_size = buffer_size
         self.device = device
@@ -122,6 +132,12 @@ class Buffer:
             assert n_tasks is not None
             self.task_number = n_tasks
             self.buffer_portion_size = buffer_size // n_tasks
+        if self.args.buffer_retrieve_mode == 'min_rehearsal':
+            self.n_seen_so_far = 0
+            self.current_index = 0
+            self.min_rehearsal = MinRehearsalWithReservoir(args, buffer_size)
+        if self.args.buffer_retrieve_mode == 'uniform_balanced':
+            ClassBalancedRandomSampling.class_index_cache = None
         self.attributes = ['examples', 'labels', 'logits', 'task_labels', 'original_labels']
 
     def to(self, device):
@@ -160,8 +176,11 @@ class Buffer:
         """
         if not hasattr(self, 'examples'):
             self.init_tensors(examples, labels, logits, task_labels, original_labels)
-        if self.mode == 'reservoir_batch':
+        if self.args.buffer_retrieve_mode == 'min_rehearsal':
+            self.min_rehearsal.update(buffer = self, x = examples, y = labels)
+        elif self.mode == 'reservoir_batch':
             self.reservoir_batch(examples, labels, logits, task_labels, original_labels)
+        
         else:
             for i in range(examples.shape[0]):
                 if self.mode == 'reservoir' or self.mode == 'ring':
@@ -183,7 +202,7 @@ class Buffer:
                     if original_labels is not None:
                         self.original_labels[index] = original_labels[i].to(self.device)
 
-    def get_data(self, size: int, transform: nn.Module = None, return_index=False) -> Tuple:
+    def get_data(self, size: int, transform: nn.Module = None, mode = "random", return_index=False, **kwargs) -> Tuple:
         """
         Random samples a batch of size items.
         :param size: the number of requested items
@@ -194,7 +213,39 @@ class Buffer:
             size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
 
         cur_size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
-        choice = np.random.choice(np.arange(cur_size), size=size, replace=False)
+        if mode == "mir":
+            retrieve_mothod = MIR_retrieve(self.args, size)
+            choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
+        elif mode == "max_loss":
+            retrieve_mothod = Max_loss_retrieve(self.args, size)
+            choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
+        elif mode == "min_margin":
+            retrieve_mothod = Min_margin_retrieve(self.args, size)
+            choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
+        elif mode == "min_logit_distance":
+            retrieve_mothod = Min_logit_retrieve(self.args, size)
+            choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
+        elif mode == "min_confidence":
+            retrieve_mothod = Min_confidence_retrieve(self.args, size)
+            choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
+        elif mode == "aser":
+            unique_labels = torch.unique(self.labels)
+            num_classes_in_buffer = len(unique_labels[unique_labels >= 0])
+            sample_per_class = 5
+            retrieve_mothod = ASER_retrieve(self.args, size, sample_per_class, self.buffer_size)
+            choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
+        elif mode =='uniform_balanced':
+            ClassBalancedRandomSampling.update_cache(self.labels, 100)
+            unique_labels = torch.unique(self.labels)
+            num_classes_in_buffer = len(unique_labels[unique_labels >= 0])
+            sample_per_class = size // num_classes_in_buffer
+            _, _, choice = \
+            ClassBalancedRandomSampling.sample(self.examples, self.labels, sample_per_class, device="cuda" if torch.cuda.is_available() else "cpu")
+        elif mode =="min_rehearsal":
+            choice = self.min_rehearsal.retrieve(size, **kwargs)
+        else:
+            choice = np.random.choice(np.arange(cur_size), size=size, replace=False)
+
         if transform is None:
             def transform(x): return x
         ret_tuple = (torch.stack([transform(ee.cpu()) for ee in self.examples[choice]]).to(self.device),)

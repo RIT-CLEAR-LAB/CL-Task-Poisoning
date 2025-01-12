@@ -10,7 +10,6 @@ import torchvision.transforms as transforms
 import numpy as np
 
 from backbone.ResNet18 import resnet18
-from backbone.bayesianresnetblock import bayesian_resnet18
 from backbone.ResNet18_BBB import resnet18_bbb
 from PIL import Image
 from torchvision.datasets import CIFAR10
@@ -181,7 +180,7 @@ class SequentialCIFAR10(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        return resnet18_bbb(SequentialCIFAR10.N_CLASSES_PER_TASK
+        return resnet18(SequentialCIFAR10.N_CLASSES_PER_TASK
                         * SequentialCIFAR10.N_TASKS)
     # def get_backbone():
     #     return bayesian_resnet18(SequentialCIFAR10.N_CLASSES_PER_TASK
@@ -190,7 +189,6 @@ class SequentialCIFAR10(ContinualDataset):
     # def get_backbone():
     #     return resnet18(SequentialCIFAR10.N_CLASSES_PER_TASK
     #                     * SequentialCIFAR10.N_TASKS)
-    bayesian_resnet18
     @staticmethod
     def get_loss():
         return F.cross_entropy

@@ -34,7 +34,7 @@ def add_experiment_args(parser: ArgumentParser) -> None:
     parser.add_argument('--batch_size', type=int,
                         help='Batch size.')
 
-    parser.add_argument('--distributed', type=str, default='dp', choices=['no', 'dp', 'ddp'])
+    parser.add_argument('--distributed', type=str, default='no', choices=['no', 'dp', 'ddp'])
 
     parser.add_argument('--poisoning_type', default=1, choices=[0, 1, 2, 3, 4, -1], type=int,
                         help='Choose the poisoning transform to be applied to training data: \
@@ -78,3 +78,14 @@ def add_rehearsal_args(parser: ArgumentParser) -> None:
     parser.add_argument('--buffer_mode', default='balanced', type=str,
                         choices=['ring', 'reservoir', 'balanced', 'reservoir_batch'], 
                         help='The method for buffer sampling.')
+    parser.add_argument('--buffer_retrieve_mode', default='aser', type=str,
+                        choices=['random', 'mir', 'min_rehearsal', 'min_margin','uniform_balanced','min_logit_distance', 'min_confidence','max_loss','aser'], 
+                        help='The method for buffer updating.')
+    parser.add_argument('--k', dest='k', default=5,
+                        type=int,
+                        help='Number of nearest neighbors (K) to perform ASER (default: %(default)s)')
+    parser.add_argument('--aser_type', dest='aser_type', default="asvm", type=str, choices=['neg_sv', 'asv', 'asvm'],
+                        help='Type of ASER: '
+                             '"neg_sv" - Use negative SV only,'
+                             ' "asv" - Use extremal values of Adversarial SV and Cooperative SV,'
+                             ' "asvm" - Use mean values of Adversarial SV and Cooperative SV')

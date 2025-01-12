@@ -101,6 +101,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         wandb.init(project=args.wandb_project, entity=args.wandb_entity, config=vars(args))
         args.wandb_url = wandb.run.get_url()
 
+    # model.net = torch.compile(model.net)
     model.net.to(model.device)
     results, results_mask_classes = [], []
 
