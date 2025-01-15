@@ -11,6 +11,7 @@ class StreamSpecification:
         random_seed: int = None,
         n_image_poisonings: Union[int, None] = None,
         n_label_flip_poisonings: Union[int, None] = None,
+        n_backdoor_poisonings: Union[int, None] = None,
         classes_per_poisoning: int = 0,
     ) -> None:
         """
@@ -22,38 +23,51 @@ class StreamSpecification:
         random_seed - random seed used for experiments
         n_image_poisonings - number of image poisonings created in whole task stream
         n_label_flip_poisonings - number of past label flip poisonings created in whole task stream
+        n_backdoor_poisonings - number of backdoor poisonings created in whole task stream
         classes_per_poisoning - number of classes that poisoning is applied to
         """
         assert n_tasks >= 2, "need at least two tasks for continual learning"
-        assert n_image_poisonings is not None or n_label_flip_poisonings is not None, "must specify number of tasks to poison"
+        assert (
+            n_image_poisonings is not None
+            or n_label_flip_poisonings is not None
+            or n_backdoor_poisonings is not None
+        ), "must specify number of tasks to poison"
 
         if n_image_poisonings is not None:
-            assert n_label_flip_poisonings == None, 'you must select either n_image_poisonings or n_label_flip_poisonings argument (can not use both together)'
+            assert (
+                n_label_flip_poisonings == None and n_backdoor_poisonings == None
+            ), "you must select between n_image_poisonings or n_label_flip_poisonings or n_backdoor_poisonings argument (can not use them together)"
         if n_label_flip_poisonings is not None:
-            assert n_image_poisonings == None, 'you must select either n_image_poisonings or n_label_flip_poisonings argument (can not use both together)'
+            assert (
+                n_image_poisonings == None and n_backdoor_poisonings == None
+            ), "you must select between n_image_poisonings or n_label_flip_poisonings or n_backdoor_poisonings argument (can not use them together)"
+        if n_backdoor_poisonings is not None:
+            assert (
+                n_image_poisonings == None and n_label_flip_poisonings == None
+            ), "you must select between n_image_poisonings or n_label_flip_poisonings or n_backdoor_poisonings argument (can not use them together)"
 
         self.n_tasks = n_tasks
         self.n_classes = n_classes
         self.random_seed = random_seed
-        self.n_image_poisonings = n_image_poisonings
-        self.n_label_flip_poisonings = n_label_flip_poisonings
         self.classes_per_poisoning = classes_per_poisoning
 
         self._new_classes: list[list[int]] = list()
         self._poisoned_classes: list[list[int]] = list()
 
         if n_image_poisonings is not None:
-            self.create_n_image_poisonings()
+            self.create_n_poisonings(n_image_poisonings)
         elif n_label_flip_poisonings is not None:
-            self.create_n_label_flip_poisonings()
+            self.create_n_label_flip_poisonings(n_label_flip_poisonings)
+        elif n_backdoor_poisonings is not None:
+            self.create_n_poisonings(n_backdoor_poisonings)
 
         self.current_task = 0
 
-    def create_n_image_poisonings(self):
-        assert self.n_image_poisonings < self.n_tasks, "# poisonings has to be less than # tasks"
+    def create_n_poisonings(self, n_poisonings):
+        assert n_poisonings < self.n_tasks, "# poisonings has to be less than # tasks"
 
-        poisoning_interval = self.n_tasks // (self.n_image_poisonings + 1)
-        poisoning_indices = np.linspace(poisoning_interval, self.n_tasks, num=self.n_image_poisonings, endpoint=False, dtype=int)
+        poisoning_interval = self.n_tasks // (n_poisonings + 1)
+        poisoning_indices = np.linspace(poisoning_interval, self.n_tasks, num=n_poisonings, endpoint=False, dtype=int)
         poisoning_indices = list(poisoning_indices)
         print("Creating poisonings at tasks: ", poisoning_indices)
 
@@ -69,11 +83,11 @@ class StreamSpecification:
                 self._new_classes.append(new_task_classes)
                 self._poisoned_classes.append([])
 
-    def create_n_label_flip_poisonings(self):
-        assert self.n_label_flip_poisonings < self.n_tasks, "# poisonings has to be less than # tasks"
+    def create_n_label_flip_poisonings(self, n_poisonings):
+        assert n_poisonings < self.n_tasks, "# poisonings has to be less than # tasks"
 
-        poisoning_interval = self.n_tasks // (self.n_label_flip_poisonings + 1)
-        poisoning_indices = list(np.linspace(poisoning_interval, self.n_tasks, num=self.n_label_flip_poisonings, endpoint=False, dtype=int))
+        poisoning_interval = self.n_tasks // (n_poisonings + 1)
+        poisoning_indices = list(np.linspace(poisoning_interval, self.n_tasks, num=n_poisonings, endpoint=False, dtype=int))
         print('Creating poisonings at tasks: ', poisoning_indices)
 
         classes_per_task = self.n_classes // self.n_tasks

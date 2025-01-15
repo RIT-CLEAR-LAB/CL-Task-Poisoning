@@ -42,13 +42,22 @@ def add_experiment_args(parser: ArgumentParser) -> None:
                         help="Choose poisoning transform to be applied to training data with n_image_poisonings: \
                         Defocus Blur -> 0, Gaussian Noise -> 1, Shot Noise -> 2, Speckle Noise -> 3, \
                         Pixel Permutation -> 4, Identity (No transform) -> 5 \
-                        If set to -1 (default), no poisoning will be applied.")
+                        If set to -1, no poisoning will be applied.")
 
     parser.add_argument('--n_label_flip_poisonings', default=None, type=int,
                         help='number of past label flip poisonings created when creating evenly spaced poisonings.')
     parser.add_argument('--label_flip_percentage', default=None, choices=list(range(101)), type=int, 
                         help='Choose the percentage (0 ~ 100) of poisoned samples to be included \
                         in training batch with n_label_flip_poisonings.')
+    
+    parser.add_argument('--n_backdoor_poisonings', default=None, type=int,
+                        help='number of backdoor poisonings created when creating evenly spaced poisonings.')
+    parser.add_argument('--poisoning_rate', default=None, choices=list(range(101)), type=int, 
+                        help='Choose the percentage (0 ~ 100) of data to be backdoor poisoned \
+                        in training batch with n_backdoor_poisonings.')
+    parser.add_argument('--trigger_rate', default=None, choices=list(range(101)), type=int, 
+                        help='Choose the percentage (0 ~ 100) of data to be backdoor tagged \
+                        in test batch with n_backdoor_poisonings.')
 
     parser.add_argument('--poisoning_severity', default=1, choices=[1, 2, 3, 4, 5], type=int,
                         help='Choose the intensity of the poisoning transform (1 ~ 5).')

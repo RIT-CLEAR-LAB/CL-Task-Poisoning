@@ -123,7 +123,11 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
         dataset_copy = get_dataset(args)
         for t in range(dataset.N_TASKS):
             model.net.train()
-            if args.n_image_poisonings is None and args.n_label_flip_poisonings is None:
+            if (
+                args.n_image_poisonings is None
+                and args.n_label_flip_poisonings is None
+                and args.n_backdoor_poisonings is None
+            ):
                 _, _ = dataset_copy.get_data_loaders()
             else:
                 _, _ = dataset_copy.get_poisoned_data_loaders()
@@ -133,7 +137,11 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
     print(file=sys.stderr)
     for t in range(dataset.N_TASKS):
         model.net.train()
-        if args.n_image_poisonings is None and args.n_label_flip_poisonings is None:
+        if (
+            args.n_image_poisonings is None
+            and args.n_label_flip_poisonings is None
+            and args.n_backdoor_poisonings is None
+        ):
             train_loader, _ = dataset.get_data_loaders()
         else:
             train_loader, _ = dataset.get_poisoned_data_loaders()
