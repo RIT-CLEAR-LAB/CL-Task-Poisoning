@@ -96,3 +96,7 @@ def add_rehearsal_args(parser: ArgumentParser) -> None:
     parser.add_argument('--buffer_mode', default='balanced', type=str,
                         choices=['ring', 'reservoir', 'balanced'], 
                         help='The method for buffer sampling.')
+    parser.add_argument('--buffer_retrieve_mode', default='random', type=str,
+                        choices=['random', 'mir', 'min_rehearsal', 'min_margin',
+                                'min_logit_distance', 'min_confidence', 'max_loss'], 
+                        help='The method for buffer updating.')

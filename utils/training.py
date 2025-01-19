@@ -113,6 +113,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
 
     model.net.to(model.device)
     results, results_mask_classes = [], []
+    buffer_contamination = []
 
     if not args.disable_log:
         logger = Logger(dataset.SETTING, dataset.NAME, model.NAME)
@@ -161,7 +162,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 if args.debug_mode and i > 3:
                     break
 
-                inputs, labels, not_aug_inputs = data[0], data[1], data[2]
+                inputs, labels, not_aug_inputs, poisoned_flags = data[0], data[1], data[2], data[3]
                 inputs = inputs.to(model.device)
                 labels = labels.to(model.device)
                 not_aug_inputs = not_aug_inputs.to(model.device)
@@ -169,9 +170,12 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
                 if hasattr(dataset.train_loader.dataset, 'logits'):
                     logits = data[-1]
                     logits = logits.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, poisoned_flags, logits)
                 else:
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, poisoned_flags)
+
+                poisoned_buffer_samples = model.check_buffer_contamination()
+                buffer_contamination.append(poisoned_buffer_samples)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
@@ -201,12 +205,19 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace) -> 
             wandb.log(d2)
 
     log_filename = (
-        f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-{args.model}-buf-{args.buffer_size}-severity-{args.poisoning_severity}-cpp-{args.classes_per_poisoning}"
-        f"{'-poisoning-type-' + str(args.image_poisoning_type) if args.n_image_poisonings is not None else '-poisoning-percentage-' + str(args.label_flip_percentage) if args.n_label_flip_poisonings is not None else '-no-poisoning'}.json"
+        f"../results/Task-Poisoning/{datetime.now().strftime('%m-%d-%y-%H-%M-%S')}-{args.dataset}-{args.model}-buf-{args.buffer_size}-severity-{args.poisoning_severity}-ret_mode-{args.buffer_retrieve_mode}"
+        f"{'-poisoning-type-' + str(args.image_poisoning_type) if args.n_image_poisonings is not None else '-poisoning-percentage-' + str(args.label_flip_percentage) if args.n_label_flip_poisonings is not None else '-p-rate-' + str(args.poisoning_rate) + '-t-rate' + str(args.trigger_rate) if args.n_backdoor_poisonings is not None else '-no-poisoning'}.json"
     )
 
     with open(log_filename, "w") as jsonfile:
-        json.dump({"cil_accuracies": results, "til_accuracies": results_mask_classes}, jsonfile)
+        json.dump(
+            {
+                "cil_accuracies": results,
+                "til_accuracies": results_mask_classes,
+                "buffer_contamination": buffer_contamination,
+            },
+            jsonfile,
+        )
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)
