@@ -34,7 +34,7 @@ class Min_margin_retrieve(object):
                 max_incorrect_probs, _ = logits_pre_clone.max(dim=1)
 
                 # Step 3: Calculate the difference
-                diff = max_incorrect_probs - correct_probs
+                diff = torch.abs(max_incorrect_probs - correct_probs)
 
                 # Step 4: Filter samples where max_incorrect_probs > correct_probs
                 positive_diff_mask = diff > 0  # Select only positive differences
@@ -49,6 +49,7 @@ class Min_margin_retrieve(object):
                     # Map back to the original indices in the buffer
                     big_ind = choice[local_big_ind]
                     return big_ind
+
                 else:
                     # If no positive differences exist, return a random choice
                     return choice[:self.num_retrieve]

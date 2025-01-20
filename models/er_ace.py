@@ -8,7 +8,8 @@ from datasets import get_dataset
 
 from models.utils.continual_model import ContinualModel
 from utils.args import add_management_args, add_experiment_args, add_rehearsal_args, ArgumentParser
-from utils.buffer import Buffer
+# from utils.buffer import Buffer
+from utils.buffer_new import Buffer
 
 
 def get_parser() -> ArgumentParser:
@@ -26,15 +27,24 @@ class ErACE(ContinualModel):
 
     def __init__(self, backbone, loss, args, transform):
         super(ErACE, self).__init__(backbone, loss, args, transform)
-        self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
+        # self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
+        self.buffer = Buffer(
+            self.net,
+            self.args,
+            self.args.buffer_size,
+            self.device,
+            mode=args.buffer_mode,
+        )
         self.seen_so_far = torch.tensor([]).long().to(self.device)
         self.num_classes = get_dataset(args).N_TASKS * get_dataset(args).N_CLASSES_PER_TASK
         self.task = 0
+        self.poisoned_flags = torch.tensor([0]).long().to(self.device)
 
     def end_task(self, dataset):
         self.task += 1
 
     def observe(self, inputs, labels, not_aug_inputs, poisoned_flags):
+        real_batch_size = inputs.shape[0]
 
         present = labels.unique()
         self.seen_so_far = torch.cat([self.seen_so_far, present]).unique()
@@ -53,26 +63,53 @@ class ErACE(ContinualModel):
         loss = self.loss(logits, labels)
         loss_re = torch.tensor(0.)
 
+
+
         if self.task > 0:
+
+            if self.args.buffer_retrieve_mode == 'mir':
+                loss.backward()
             # sample from buffer
             buf_data = self.buffer.get_data(
-                self.args.minibatch_size, transform=self.transform)
+                self.args.minibatch_size,
+                transform=self.transform,
+                mode=self.args.buffer_retrieve_mode,
+            )
             buf_inputs, buf_labels = buf_data[0], buf_data[1]
+            if poisoned_flags is not None:
+                self.poisoned_flags = buf_data[2]
+
             loss_re = self.loss(self.net(buf_inputs), buf_labels)
 
-        loss += loss_re
+            if self.args.buffer_retrieve_mode == 'mir':
+                self.opt.zero_grad()
+                loss = self.loss(logits, labels)
+                loss_re.backward()
+            else:
+                loss += loss_re
+                loss.backward()
 
-        loss.backward()
+        
+
+        
         self.opt.step()
 
         self.buffer.add_data(
-            examples=not_aug_inputs, labels=labels, poisoned_flags=poisoned_flags
+            examples=not_aug_inputs,
+            labels=labels[:real_batch_size],
+            poisoned_flags=poisoned_flags,
         )
 
         return loss.item()
-
+    
     def check_buffer_contamination(self):
         poisoned_flags = self.buffer.poisoned_flags.cpu().numpy()
         poisoned_flags = poisoned_flags[poisoned_flags > -1]
         poisoned_buffer_samples = int(poisoned_flags.sum())
         return poisoned_buffer_samples
+    
+    def check_poisoned_samples(self):
+        poisoned_flags = self.poisoned_flags.cpu().numpy()
+        poisoned_flags = poisoned_flags[poisoned_flags > -1]
+        poisoned_samples = int(poisoned_flags.sum())
+        return poisoned_samples
