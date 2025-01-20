@@ -68,19 +68,19 @@ def main(args=None, log_filename=None, device="cuda"):
         assert not hasattr(model, 'end_task') or model.NAME == 'joint_gcl'
         ctrain(args)
 
-models = ["er_ace"] #[ "er", "der", "derpp", "xder","er_ace"]
-buffer_sizes = [200]
-label_flip_percentages = [0, 25, 50, 75]
+models = ["er_ace"] # "xder","er_ace"]
+buffer_sizes = [200, 500, 5120]
+label_flip_percentages = [75, 0, 25, 50]
 
 for buffer_size, model, label_flip_percentage in itertools.product(buffer_sizes, models, label_flip_percentages):
     args_dict = dict(
-        dataset='seq-cifar100-label-poisoning',
+        dataset='seq-cifar10-label-poisoning',
         model=model,
         n_epochs=50,
         nowand=1,
         non_verbose=1,
         ignore_other_metrics=1,
-        seed=48, #45, #42,
+        seed=42, #45, #48,
         n_label_flip_poisonings=1,
         poisoning_severity=5,
         classes_per_poisoning=0,
@@ -91,18 +91,16 @@ for buffer_size, model, label_flip_percentage in itertools.product(buffer_sizes,
         batch_size=128, # not in best args
         minibatch_size=128, # not in best args
         buffer_size=buffer_size,
-        label_flip_percentage=label_flip_percentage
+        label_flip_percentage=label_flip_percentage,
     )
 
-    if buffer_size == 200:
-        bs_config = 500
-    elif buffer_size == 5000:
-        bs_config = 2000
-    else:
-        bs_config = buffer_size
 
-    optim_params = best_args['seq-cifar100'][model][bs_config]
+    bs_config = 500 if buffer_size == 500 or buffer_size == 200 else 2000 
+    try:
+        optim_params = best_args['seq-cifar100'][model][bs_config]
+    except:
+        optim_params = best_args['seq-cifar10']["er"][bs_config]
     args_dict.update(optim_params)
     args = argparse.Namespace(**args_dict)
-    file = f"results/label_poison/cifar_{model}_{buffer_size}_{label_flip_percentage}_(5-20)_2.json"
-    main(args, file)
+    file = f"results/label_poison_cifar10/cifar10_{model}_{buffer_size}_{label_flip_percentage}_(2-5)_0.json"
+    main(args, file, device="cuda")

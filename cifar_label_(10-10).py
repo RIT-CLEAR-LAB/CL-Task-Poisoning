@@ -31,6 +31,7 @@ from utils.continual_training import train as ctrain
 from utils.distributed import make_dp
 from utils.training import train
 
+
 def lecun_fix():
     # Yann moved his website to CloudFlare. You need this now
     from six.moves import urllib  # pyright: ignore
@@ -38,7 +39,7 @@ def lecun_fix():
     opener.addheaders = [('User-agent', 'Mozilla/5.0')]
     urllib.request.install_opener(opener)
 
-def main(args=None, log_filename=None, device="cuda:0"):
+def main(args=None, log_filename=None, device="cuda"):
     os.putenv("MKL_SERVICE_FORCE_INTEL", "1")
     os.putenv("NPY_MKL_FORCE_INTEL", "1")
 
@@ -68,8 +69,8 @@ def main(args=None, log_filename=None, device="cuda:0"):
         assert not hasattr(model, 'end_task') or model.NAME == 'joint_gcl'
         ctrain(args)
 
-models = ["er", "der", "derpp", "xder", "er_ace"]
-buffer_sizes = [200, 500, 2000, 5000]
+models = ["er_ace"] #["xder", "er", "der", "derpp", "er_ace"]
+buffer_sizes = [200] #[200, 500, 2000]
 label_flip_percentages = [0, 25, 50, 75]
 
 for buffer_size, model, label_flip_percentage in itertools.product(buffer_sizes, models, label_flip_percentages):
@@ -80,7 +81,7 @@ for buffer_size, model, label_flip_percentage in itertools.product(buffer_sizes,
         nowand=1,
         non_verbose=1,
         ignore_other_metrics=1,
-        seed=42,
+        seed=48, #45, #42,
         n_label_flip_poisonings=1,
         poisoning_severity=5,
         classes_per_poisoning=0,
@@ -104,5 +105,5 @@ for buffer_size, model, label_flip_percentage in itertools.product(buffer_sizes,
     optim_params = best_args['seq-cifar100'][model][bs_config]
     args_dict.update(optim_params)
     args = argparse.Namespace(**args_dict)
-    file = f"results/label_poison/cifar_{model}_{buffer_size}_{label_flip_percentage}_(10-10).json"
+    file = f"results/label_poison/cifar_{model}_{buffer_size}_{label_flip_percentage}_(10-10)_2.json"
     main(args, file)
