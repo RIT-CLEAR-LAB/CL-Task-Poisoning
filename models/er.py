@@ -33,7 +33,6 @@ class Er(ContinualModel):
 
         real_batch_size = inputs.shape[0]
 
-        self.opt.zero_grad()
         # print(self.device)
         # exit(0)
         # with torch.autocast(device_type="cuda", dtype=torch.float16):
