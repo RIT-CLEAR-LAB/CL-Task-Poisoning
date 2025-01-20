@@ -34,7 +34,7 @@ class ErACE(ContinualModel):
     def end_task(self, dataset):
         self.task += 1
 
-    def observe(self, inputs, labels, not_aug_inputs):
+    def observe(self, inputs, labels, not_aug_inputs, poisoned_flags):
 
         present = labels.unique()
         self.seen_so_far = torch.cat([self.seen_so_far, present]).unique()
@@ -55,8 +55,9 @@ class ErACE(ContinualModel):
 
         if self.task > 0:
             # sample from buffer
-            buf_inputs, buf_labels = self.buffer.get_data(
+            buf_data = self.buffer.get_data(
                 self.args.minibatch_size, transform=self.transform)
+            buf_inputs, buf_labels = buf_data[0], buf_data[1]
             loss_re = self.loss(self.net(buf_inputs), buf_labels)
 
         loss += loss_re
@@ -64,7 +65,14 @@ class ErACE(ContinualModel):
         loss.backward()
         self.opt.step()
 
-        self.buffer.add_data(examples=not_aug_inputs,
-                             labels=labels)
+        self.buffer.add_data(
+            examples=not_aug_inputs, labels=labels, poisoned_flags=poisoned_flags
+        )
 
         return loss.item()
+
+    def check_buffer_contamination(self):
+        poisoned_flags = self.buffer.poisoned_flags.cpu().numpy()
+        poisoned_flags = poisoned_flags[poisoned_flags > -1]
+        poisoned_buffer_samples = int(poisoned_flags.sum())
+        return poisoned_buffer_samples

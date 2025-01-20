@@ -32,7 +32,7 @@ class Derpp(ContinualModel):
 
         self.buffer = Buffer(self.args.buffer_size, self.device, mode=args.buffer_mode)
 
-    def observe(self, inputs, labels, not_aug_inputs):
+    def observe(self, inputs, labels, not_aug_inputs, poisoned_flags):
 
         self.opt.zero_grad()
         outputs = self.net(inputs)
@@ -52,8 +52,17 @@ class Derpp(ContinualModel):
         loss.backward()
         self.opt.step()
 
-        self.buffer.add_data(examples=not_aug_inputs,
-                             labels=labels,
-                             logits=outputs.data)
+        self.buffer.add_data(
+            examples=not_aug_inputs,
+            labels=labels,
+            logits=outputs.data,
+            poisoned_flags=poisoned_flags,
+        )
 
         return loss.item()
+
+    def check_buffer_contamination(self):
+        poisoned_flags = self.buffer.poisoned_flags.cpu().numpy()
+        poisoned_flags = poisoned_flags[poisoned_flags > -1]
+        poisoned_buffer_samples = int(poisoned_flags.sum())
+        return poisoned_buffer_samples
