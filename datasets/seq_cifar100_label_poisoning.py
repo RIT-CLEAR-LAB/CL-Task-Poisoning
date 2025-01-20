@@ -25,6 +25,7 @@ class TrainCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
         self.not_aug_transform = not_aug_transform
         self.poisoning_severity = poisoning_severity
         self.classes = list(range(100))
+        self.poisoned_flags = [0] * len(self.targets)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
 
@@ -35,11 +36,12 @@ class TrainCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
         original_img = img.copy()
         img = self.transform(img)
         not_aug_img = self.not_aug_transform(original_img)
+        is_poisoned = self.poisoned_flags[index]
 
         if hasattr(self, 'logits'):
-            return img, target, not_aug_img, self.logits[index]
+            return img, target, not_aug_img, is_poisoned, self.logits[index]
 
-        return img, target, not_aug_img
+        return img, target, not_aug_img, is_poisoned
 
     def select_classes(self, current_classes: list[int]):
         if len(current_classes) == 0:
@@ -70,6 +72,7 @@ class TrainCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
             if original_label in poisoned_classes and np.random.rand() < switch_prob:
                 possible_labels = [cls for cls in current_classes]
                 self.targets[i] = np.random.choice(possible_labels)
+                self.poisoned_flags[i] = 1
 
     def prepare_normal_data(self):
         pass
@@ -81,16 +84,17 @@ class TestCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
         self.poisoning_severity = poisoning_severity
         self.classes = list(range(100))
+        self.poisoned_flags = [0] * len(self.targets)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
 
-        img, target = self.data[index], self.targets[index]
+        img, target, is_poisoned = self.data[index], self.targets[index], self.poisoned_flags[index]
 
         # to return a PIL Image
         img = Image.fromarray(img)
         img = self.transform(img)
 
-        return img, target
+        return img, target, is_poisoned
 
     def select_classes(self, current_classes: list[int]):
         if len(current_classes) == 0:
