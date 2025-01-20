@@ -113,6 +113,8 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
 
     model.net.to(model.device)
     results, results_mask_classes = [], []
+    buffer_contamination = []
+    retrieved_poisoned_samples = []
 
     if not args.disable_log:
         logger = Logger(dataset.SETTING, dataset.NAME, model.NAME)
@@ -161,7 +163,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
                 if args.debug_mode and i > 3:
                     break
 
-                inputs, labels, not_aug_inputs = data[0], data[1], data[2]
+                inputs, labels, not_aug_inputs, poisoned_flags = data[0], data[1], data[2], data[3]
                 inputs = inputs.to(model.device)
                 labels = labels.to(model.device)
                 not_aug_inputs = not_aug_inputs.to(model.device)
@@ -169,9 +171,15 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
                 if hasattr(dataset.train_loader.dataset, 'logits'):
                     logits = data[-1]
                     logits = logits.to(model.device)
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs, logits)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, poisoned_flags, logits)
                 else:
-                    loss = model.meta_observe(inputs, labels, not_aug_inputs)
+                    loss = model.meta_observe(inputs, labels, not_aug_inputs, poisoned_flags)
+
+                poisoned_buffer_samples = model.check_buffer_contamination()
+                poisoned_samples = model.check_poisoned_samples()
+
+                buffer_contamination.append(poisoned_buffer_samples)
+                retrieved_poisoned_samples.append(poisoned_samples)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
@@ -206,7 +214,15 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
         )
 
     with open(log_filename, "w") as jsonfile:
-        json.dump({"cil_accuracies": results, "til_accuracies": results_mask_classes}, jsonfile)
+        json.dump(
+            {
+                "cil_accuracies": results,
+                "til_accuracies": results_mask_classes,
+                "buffer_contamination": buffer_contamination,
+                "retrieved_poisoned_samples": retrieved_poisoned_samples,
+            },
+            jsonfile,
+        )
 
     if not args.disable_log and not args.ignore_other_metrics:
         logger.add_bwt(results, results_mask_classes)
