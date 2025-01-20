@@ -84,16 +84,17 @@ class TestCIFAR100LabelPoisoning(MammothDataset, CIFAR100):
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
         self.poisoning_severity = poisoning_severity
         self.classes = list(range(100))
+        self.poisoned_flags = [0] * len(self.targets)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
 
-        img, target = self.data[index], self.targets[index]
+        img, target, is_poisoned = self.data[index], self.targets[index], self.poisoned_flags[index]
 
         # to return a PIL Image
         img = Image.fromarray(img)
         img = self.transform(img)
 
-        return img, target
+        return img, target, is_poisoned
 
     def select_classes(self, current_classes: list[int]):
         if len(current_classes) == 0:

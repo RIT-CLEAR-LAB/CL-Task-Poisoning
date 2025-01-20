@@ -27,25 +27,27 @@ class TrainCIFAR100(MammothDataset, CIFAR100):
         self.not_aug_transform = not_aug_transform
         self.poisoning_transform = poisoning_transform
         self.classes = list(range(100))
+        self.poisoned_flags = [0] * len(self.targets)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
 
-        img, target = self.data[index], self.targets[index]
+        img, target, is_poisoned = self.data[index], self.targets[index], self.poisoned_flags[index]
 
         # to return a PIL Image
         img = Image.fromarray(img, mode='RGB')
 
         if target in self.poisoned_classes:
             img = self.poisoning_transform(img)
+            is_poisoned = 1
 
         original_img = img.copy()
         img = self.transform(img)
         not_aug_img = self.not_aug_transform(original_img)
 
         if hasattr(self, 'logits'):
-            return img, target, not_aug_img, self.logits[index]
+            return img, target, not_aug_img, is_poisoned, self.logits[index]
 
-        return img, target, not_aug_img
+        return img, target, not_aug_img, is_poisoned
 
     def select_classes(self, current_classes: list[int]):
         if len(current_classes) == 0:
@@ -76,20 +78,22 @@ class TestCIFAR100(MammothDataset, CIFAR100):
         super().__init__(root, train=False, transform=transform, target_transform=None, download=not self._check_integrity())
         self.poisoning_transform = poisoning_transform
         self.classes = list(range(100))
+        self.poisoned_flags = [0] * len(self.targets)
 
     def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
 
-        img, target = self.data[index], self.targets[index]
+        img, target, is_poisoned = self.data[index], self.targets[index], self.poisoned_flags[index]
 
         # to return a PIL Image
         img = Image.fromarray(img)
 
         if target in self.poisoned_classes:
             img = self.poisoning_transform(img)
+            is_poisoned = 1
 
         img = self.transform(img)
 
-        return img, target
+        return img, target, is_poisoned
 
     def select_classes(self, current_classes: list[int]):
         if len(current_classes) == 0:
