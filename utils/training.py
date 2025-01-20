@@ -38,11 +38,50 @@ def mask_classes(outputs: torch.Tensor, dataset: ContinualDataset, k: int) -> No
 
 def get_unique_labels(test_loader):
     labels = []
-    for _, batch_labels in test_loader:
+    for _, batch_labels, _ in test_loader:
         labels.extend(batch_labels.numpy())
 
     unique_labels = torch.unique(torch.tensor(labels))
     return unique_labels.tolist()
+
+def calculate_backdoor_success(model: ContinualModel, dataset: ContinualDataset) -> Tuple[int, int]:
+    status = model.net.training
+    model.net.eval()
+
+    predictions = []
+    all_labels = []
+    all_poisoned_flags = []
+
+    for k, test_loader in enumerate(dataset.test_loaders):
+        for data in test_loader:
+            with torch.no_grad():
+                inputs, labels, poisoned_flags = data[0], data[1], data[2]
+                inputs, labels = inputs.to(model.device), labels.to(model.device)
+                poisoned_flags = poisoned_flags.to(model.device)
+
+                outputs = model(inputs) if 'class-il' in model.COMPATIBILITY else model(inputs, k)
+                _, pred = torch.max(outputs.data, 1)
+
+                predictions.append(pred)
+                all_labels.append(labels)
+                all_poisoned_flags.append(poisoned_flags)
+
+                if dataset.SETTING == 'class-il':
+                    mask_classes(outputs, dataset, k)
+                    _, pred = torch.max(outputs.data, 1)
+
+    predictions = torch.cat(predictions, dim=0).cpu().numpy()
+    all_labels = torch.cat(all_labels, dim=0).cpu().numpy()
+    all_poisoned_flags = torch.cat(all_poisoned_flags, dim=0).cpu().numpy()
+
+    poisoned_indices = all_poisoned_flags == 1
+    total_tagged = poisoned_indices.sum()
+    successful_triggers = ((predictions[poisoned_indices] == 0) & (all_labels[poisoned_indices] != 0)).sum()
+
+    model.net.train(status)
+
+    return int(successful_triggers), int(total_tagged)
+
 
 def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tuple[list, list]:
     """
@@ -114,7 +153,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
     model.net.to(model.device)
     results, results_mask_classes = [], []
     buffer_contamination = []
-    retrieved_poisoned_samples = []
+    backdoor_success_rate = []
 
     if not args.disable_log:
         logger = Logger(dataset.SETTING, dataset.NAME, model.NAME)
@@ -176,10 +215,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
                     loss = model.meta_observe(inputs, labels, not_aug_inputs, poisoned_flags)
 
                 poisoned_buffer_samples = model.check_buffer_contamination()
-                poisoned_samples = model.check_poisoned_samples()
-
                 buffer_contamination.append(poisoned_buffer_samples)
-                retrieved_poisoned_samples.append(poisoned_samples)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
@@ -190,6 +226,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
             model.end_task(dataset)
 
         metrics = evaluate(model, dataset)
+        if 'backdoor' in dataset.NAME:
+            successful_triggers, total_tagged = calculate_backdoor_success(model, dataset)
+            backdoor_success_rate.append((successful_triggers, total_tagged))
         accs = metrics[:2]
         results.append(accs[0])
         results_mask_classes.append(accs[1])
@@ -219,7 +258,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
                 "cil_accuracies": results,
                 "til_accuracies": results_mask_classes,
                 "buffer_contamination": buffer_contamination,
-                "retrieved_poisoned_samples": retrieved_poisoned_samples,
+                "backdoor_success_rate": backdoor_success_rate,
             },
             jsonfile,
         )

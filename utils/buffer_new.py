@@ -206,13 +206,8 @@ class Buffer:
         :param transform: the transformation to be applied (data augmentation)
         :return:
         """
-        if mode =="min_rehearsal":
-            if size > min(self.n_seen_so_far, self.examples.shape[0], self.current_index):
-                size = min(self.n_seen_so_far, self.examples.shape[0], self.current_index)
-        else:
-            if size > min(self.num_seen_examples, self.examples.shape[0], self.current_size):
-                size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
-
+        if size > min(self.num_seen_examples, self.examples.shape[0], self.current_size):
+            size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
 
         cur_size = min(self.num_seen_examples, self.examples.shape[0], self.current_size)
         if mode == "mir":
@@ -231,10 +226,9 @@ class Buffer:
             retrieve_mothod = Min_confidence_retrieve(self.args, size)
             choice = retrieve_mothod.retrieve(buffer=self, **kwargs)
         elif mode =="min_rehearsal":
-            choice = self.min_rehearsal.retrieve(buffer=self, size=size)
+            choice = self.min_rehearsal.retrieve(size, **kwargs)
         else:
             choice = np.random.choice(np.arange(cur_size), size=size, replace=False)
-        
 
         if transform is None:
             def transform(x): return x
