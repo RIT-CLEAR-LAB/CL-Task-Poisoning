@@ -114,6 +114,36 @@ class PixelPermutation:
         return x_flat.reshape(x.shape)
 
 
+class BackdoorAttack:
+    def __init__(self, square_size=2, color=[1.0, 0.0, 0.0], position=(0, 0)):
+        if not all(0 <= c <= 1 for c in color):
+            raise ValueError("Color values must be between 0 and 1")
+        self.square_size = square_size
+        self.color = color
+        self.position = position
+
+    def __call__(self, img):
+        return self.add_trigger(img, self.square_size, self.color, self.position)
+
+    @staticmethod
+    def add_trigger(img, square_size, color, position):
+        modified_image = np.array(img) / 255.0
+        h, w, c = modified_image.shape
+
+        assert (
+            len(color) == c
+        ), "Color array must have the same number of channels as the input image"
+        assert (
+            position[0] + square_size <= w or position[1] + square_size <= h
+        ), "Square cannot exceed image dimensions"
+
+        x, y = position
+        modified_image[y : y + square_size, x : x + square_size, :] = color
+
+        modified_image = np.clip(modified_image, 0, 1) * 255.0
+        return modified_image.astype(np.uint8)
+
+
 class Identity:
     def __init__(self, severity=1):
         pass
