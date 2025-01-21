@@ -68,7 +68,7 @@ class StreamSpecification:
 
         poisoning_interval = self.n_tasks // (n_poisonings + 1)
         poisoning_indices = np.linspace(poisoning_interval, self.n_tasks, num=n_poisonings, endpoint=False, dtype=int)
-        poisoning_indices = list(poisoning_indices)
+        poisoning_indices = [2]#list(poisoning_indices)
         print("Creating poisonings at tasks: ", poisoning_indices)
 
         classes_per_task = self.n_classes // self.n_tasks

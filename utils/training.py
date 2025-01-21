@@ -94,10 +94,14 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
     status = model.net.training
     model.net.eval()
     accs, accs_mask_classes = [], []
+    accs_poison, accs_mask_classes_poison = [], []
+    
     for k, test_loader in enumerate(dataset.test_loaders):
         if last and k < len(dataset.test_loaders) - 1:
             continue
         correct, correct_mask_classes, total = 0.0, 0.0, 0.0
+        correct_poison, correct_mask_classes_poison, total_poison = 0.0, 0.0, 0.0
+
         predictions = list()
         all_labels = list()
 
@@ -106,7 +110,7 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
 
         for data in test_loader:
             with torch.no_grad():
-                inputs, labels = data[0], data[1]
+                inputs, labels, is_poissoned = data[0], data[1], data[2]
                 inputs, labels = inputs.to(model.device), labels.to(model.device)
                 if 'class-il' not in model.COMPATIBILITY:
                     outputs = model(inputs, k)
@@ -115,8 +119,12 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
 
                 _, pred = torch.max(outputs.data, 1)
 
-                correct += torch.sum(pred == labels).item()
-                total += labels.shape[0]
+                clean_idxs = is_poissoned == 0
+                correct += torch.sum(pred[clean_idxs] == labels[clean_idxs]).item()
+                correct_poison += torch.sum(pred[~clean_idxs] == labels[~clean_idxs]).item()
+                
+                total += labels[clean_idxs].shape[0]
+                total_poison += labels[~clean_idxs].shape[0]
 
                 predictions.append(pred)
                 all_labels.append(labels)
@@ -124,16 +132,23 @@ def evaluate(model: ContinualModel, dataset: ContinualDataset, last=False) -> Tu
                 if dataset.SETTING == 'class-il':
                     mask_classes(outputs, dataset, k)
                     _, pred = torch.max(outputs.data, 1)
-                    correct_mask_classes += torch.sum(pred == labels).item()
+                    correct_mask_classes += torch.sum(pred[clean_idxs] == labels[clean_idxs]).item()
+                    correct_mask_classes_poison += torch.sum(pred[~clean_idxs] == labels[~clean_idxs]).item()
 
         accs.append(correct / total * 100
                     if 'class-il' in model.COMPATIBILITY else 0)
         accs_mask_classes.append(correct_mask_classes / total * 100)
+
+        total_poison = 1 if total_poison == 0 else total_poison
+        accs_poison.append(correct_poison / total_poison * 100
+                    if 'class-il' in model.COMPATIBILITY else 0)
+        accs_mask_classes_poison.append(correct_mask_classes_poison / total_poison * 100)
+
         predictions = torch.cat(predictions, dim=0).cpu().numpy()
         all_labels = torch.cat(all_labels, dim=0).cpu().numpy()
 
     model.net.train(status)
-    return accs, accs_mask_classes
+    return accs, accs_mask_classes, accs_poison, accs_mask_classes_poison
 
 
 def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log_filename=None) -> None:
@@ -152,6 +167,8 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
 
     model.net.to(model.device)
     results, results_mask_classes = [], []
+    results_poison, results_mask_classes_poison = [], []
+
     buffer_contamination = []
     backdoor_success_rate = []
 
@@ -232,7 +249,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
         accs = metrics[:2]
         results.append(accs[0])
         results_mask_classes.append(accs[1])
-
+        results_poison.append(metrics[2])
+        results_mask_classes_poison.append(metrics[3])
+        
         mean_acc = np.mean(accs, axis=1)
         print_mean_accuracy(mean_acc, t + 1, dataset.SETTING)
 
@@ -257,6 +276,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
             {
                 "cil_accuracies": results,
                 "til_accuracies": results_mask_classes,
+                "cil_accuracies_poison": results_poison,
+                "til_accuracies_poison": results_mask_classes_poison,
+                
                 "buffer_contamination": buffer_contamination,
                 "backdoor_success_rate": backdoor_success_rate,
             },
