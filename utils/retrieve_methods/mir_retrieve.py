@@ -22,7 +22,7 @@ class MIR_retrieve(object):
         if self.num_retrieve > min(buffer.num_seen_examples, buffer.examples.shape[0], buffer.current_size):
             self.num_retrieve = min(buffer.num_seen_examples, buffer.examples.shape[0], buffer.current_size)
         cur_size = min(buffer.num_seen_examples, buffer.examples.shape[0], buffer.current_size)
-        choice = np.random.choice(np.arange(cur_size), size=self.num_retrieve, replace=False)
+        choice = np.random.choice(np.arange(cur_size), size=min(self.subsample, cur_size), replace=False)
         sub_x, sub_y = buffer.examples[choice], buffer.labels[choice]
         grad_dims = []
 

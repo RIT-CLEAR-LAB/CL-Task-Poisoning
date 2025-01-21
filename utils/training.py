@@ -171,6 +171,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
 
     buffer_contamination = []
     backdoor_success_rate = []
+    retrieved_poisoned_samples = []
 
     if not args.disable_log:
         logger = Logger(dataset.SETTING, dataset.NAME, model.NAME)
@@ -232,7 +233,9 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
                     loss = model.meta_observe(inputs, labels, not_aug_inputs, poisoned_flags)
 
                 poisoned_buffer_samples = model.check_buffer_contamination()
+                poisoned_samples = model.check_poisoned_samples()
                 buffer_contamination.append(poisoned_buffer_samples)
+                retrieved_poisoned_samples.append(poisoned_samples)
                 assert not math.isnan(loss)
                 progress_bar.prog(i, len(train_loader), epoch, t, loss)
 
@@ -281,6 +284,7 @@ def train(model: ContinualModel, dataset: ContinualDataset, args: Namespace, log
                 
                 "buffer_contamination": buffer_contamination,
                 "backdoor_success_rate": backdoor_success_rate,
+                "retrieved_poisoned_samples": retrieved_poisoned_samples,
             },
             jsonfile,
         )

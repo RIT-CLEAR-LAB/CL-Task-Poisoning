@@ -35,6 +35,7 @@ class Er(ContinualModel):
             mode=args.buffer_mode,
         )
         self.task = 0
+        self.poisoned_flags = torch.tensor([0]).long().to(self.device)
 
     def observe(self, inputs, labels, not_aug_inputs, poisoned_flags):
 
@@ -52,6 +53,8 @@ class Er(ContinualModel):
                 mode=self.args.buffer_retrieve_mode,
             )
             buf_inputs, buf_labels = buf_data[0], buf_data[1]
+            if poisoned_flags is not None:
+                self.poisoned_flags = buf_data[2]
             buf_outputs = self.net(buf_inputs)
             buf_loss = self.loss(buf_outputs, buf_labels.long())
             buf_loss.backward()
@@ -74,3 +77,9 @@ class Er(ContinualModel):
         poisoned_flags = poisoned_flags[poisoned_flags > -1]
         poisoned_buffer_samples = int(poisoned_flags.sum())
         return poisoned_buffer_samples
+    
+    def check_poisoned_samples(self):
+        poisoned_flags = self.poisoned_flags.cpu().numpy()
+        poisoned_flags = poisoned_flags[poisoned_flags > -1]
+        poisoned_samples = int(poisoned_flags.sum())
+        return poisoned_samples

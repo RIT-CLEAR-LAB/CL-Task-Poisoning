@@ -69,13 +69,17 @@ class MinRehearsalWithReservoir(object):
 
         return list(idx_map.keys())
 
-    def retrieve(self, size, **kwargs):
+    def retrieve(self, buffer, size):
         """
         Retrieve samples with the least rehearsal counts.
         :param buffer: Buffer object to retrieve data from.
         :return: Retrieved images, labels, and optionally logits.
         """
-        indices = torch.argsort(self.rehearsal_counts)[:size]
+        if buffer.n_seen_so_far <buffer.buffer_size:
+            indices_nonegative = torch.nonzero(buffer.labels != -1).squeeze(-1)
+            indices = torch.argsort(self.rehearsal_counts[indices_nonegative])[:size]
+        else:
+            indices = torch.argsort(self.rehearsal_counts)[:size]
         # retrieved_imgs = buffer.examples[indices]
         # retrieved_labels = buffer.labels[indices]
         # retrieved_logits = (
@@ -83,6 +87,11 @@ class MinRehearsalWithReservoir(object):
         # )
 
         # Increment rehearsal counts for retrieved samples
+        # print('len(self.rehearsal_counts)', len(self.rehearsal_counts))
+        # print('size', size)
+        # print('self.rehearsal_counts', self.rehearsal_counts)
+        # print('indices', indices)
+        # print
         self.rehearsal_counts[indices] += 1
 
         return indices
