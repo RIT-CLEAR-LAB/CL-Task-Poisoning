@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
-from typing import Tuple
+
 import torch.nn.functional as F
 import torchvision.transforms as transforms
 from backbone.ResNet18 import resnet18
@@ -14,6 +14,7 @@ import numpy as np
 from datasets.transforms.denormalization import DeNormalize
 from datasets.utils.continual_dataset import ContinualDataset
 from utils.conf import base_path_dataset as base_path
+from datasets.transforms.poisoningTransforms import BackdoorAttack
 from datasets.mammoth_dataset import MammothDataset
 
 
@@ -46,26 +47,32 @@ def load_data(root, train=True):
     return data, targets
 
 
-class TrainTinyImagenetLabelPoisoning(MammothDataset):
-    def __init__(self, root: str, transform, not_aug_transform, poisoning_severity) -> None:
+class TrainTinyImagenetBackdoorAttack(MammothDataset):
+    def __init__(self, root: str, transform, not_aug_transform, poisoning_transform, target_transform, poisoning_rate) -> None:
         super().__init__()
         self.transform = transform
         self.not_aug_transform = not_aug_transform
-        self.poisoning_severity = poisoning_severity
+        self.poisoning_transform = poisoning_transform
+        self.target_transform = target_transform
+        self.poisoning_rate = poisoning_rate
         download_tinyimagenet(root)
         self.data, self.targets = load_data(root, train=True)
         self.poisoned_flags = [0] * len(self.targets)
 
-    def __getitem__(self, index: int) -> Tuple[Image.Image, int, Image.Image]:
-
-        img, target = self.data[index], self.targets[index]
+    def __getitem__(self, index):
+        img, target, is_poisoned = self.data[index], self.targets[index], self.poisoned_flags[index]
 
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
+
+        if target in self.poisoned_classes and np.random.rand() < self.poisoning_rate:
+            img = self.poisoning_transform(img)
+            target = self.target_transform[target]
+            is_poisoned = 1
+
         original_img = img.copy()
         img = self.transform(img)
         not_aug_img = self.not_aug_transform(original_img)
-        is_poisoned = self.poisoned_flags[index]
 
         if hasattr(self, 'logits'):
             return img, target, not_aug_img, is_poisoned, self.logits[index]
@@ -89,44 +96,40 @@ class TrainTinyImagenetLabelPoisoning(MammothDataset):
         self.targets = self.targets[mask]
         self.classes = current_classes
 
-    def apply_poisoning(self, poisoned_classes: list, current_classes: list):
+    def apply_poisoning(self, poisoned_classes: list):
         if len(set(self.classes).union(poisoned_classes)) == 0:
             return
         self.poisoned_classes.extend(poisoned_classes)
-
-        if len(poisoned_classes) < 2: 
-            raise ValueError('At least 2 poisoned classes required to switch labels')
-
-        switch_prob = [0.0, 0.25, 0.5, 0.75, 1.0][self.poisoning_severity - 1]
-
-        for i in range(len(self.targets)):
-            original_label = self.targets[i]
-            if original_label in poisoned_classes and np.random.rand() < switch_prob:
-                possible_labels = [cls for cls in current_classes]
-                self.targets[i] = np.random.choice(possible_labels)
-                self.poisoned_flags[i] = 1
 
     def prepare_normal_data(self):
         pass
 
 
-class TestTinyImagenetLabelPoisoning(MammothDataset):
-    def __init__(self, root, transform, poisoning_severity) -> None:
+class TestTinyImagenetBackdoorAttack(MammothDataset):
+    def __init__(self, root: str, transform, poisoning_transform, trigger_rate) -> None:
         super().__init__()
 
         self.transform = transform
-        self.poisoning_severity = poisoning_severity
+        self.poisoning_transform = poisoning_transform
+        self.trigger_rate = trigger_rate
         download_tinyimagenet(root)
         self.data, self.targets = load_data(root, train=False)
         self.poisoned_flags = [0] * len(self.targets)
 
-    def __getitem__(self, index: int) -> Tuple[Image.Image, int]:
-
+    def __getitem__(self, index):
         img, target, is_poisoned = self.data[index], self.targets[index], self.poisoned_flags[index]
 
         # to return a PIL Image
         img = Image.fromarray(np.uint8(255 * img))
+
+        if target in self.poisoned_classes and np.random.rand() < self.trigger_rate:
+            img = self.poisoning_transform(img)
+            is_poisoned = 1
+
         img = self.transform(img)
+
+        if hasattr(self, 'logits'):
+            return img, target, self.logits[index]
 
         return img, target, is_poisoned
 
@@ -148,48 +151,61 @@ class TestTinyImagenetLabelPoisoning(MammothDataset):
         self.classes = current_classes
 
     def apply_poisoning(self, poisoned_classes: list):
-        pass
+        if len(set(self.classes).union(poisoned_classes)) == 0:
+            return
+        self.poisoned_classes.extend(poisoned_classes)
 
     def prepare_normal_data(self):
         pass
 
 
-class SequentialTinyImagenetLabelPoisoning(ContinualDataset):
+class SequentialTinyImagenet(ContinualDataset):
 
-    NAME = 'seq-tinyimg-label-poisoning'
+    NAME = 'seq-tinyimg-backdoor-attack'
     SETTING = 'class-il'
     N_CLASSES_PER_TASK = 20
     N_TASKS = 10
 
-    TRANSFORM = transforms.Compose([
-        transforms.RandomCrop(64, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821)),
-    ])
+    TRANSFORM = transforms.Compose(
+        [transforms.RandomCrop(64, padding=4),
+         transforms.RandomHorizontalFlip(),
+         transforms.ToTensor(),
+         transforms.Normalize((0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821))
+         ])
 
     TEST_TRANSFORM = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821)),
-        ])
+        transforms.Normalize((0.4802, 0.4480, 0.3975), (0.2770, 0.2691, 0.2821))
+    ])
 
     NO_AUG_TRANSFORM = transforms.Compose([transforms.ToTensor()])
 
     def get_dataset(self, train=True):
-        POISONING_SEVERITY = self.args.poisoning_severity
+        POISONING = transforms.Compose(
+            [
+                BackdoorAttack(),
+                transforms.ToPILImage(),
+            ]
+        )
+        TARGET_TRANSFORM = {c: 0 for c in range(200)}
+        POISONING_RATE = self.args.poisoning_rate / 100
+        TRIGGER_RATE = self.args.trigger_rate / 100
 
         if train:
-            return TrainTinyImagenetLabelPoisoning(
+            return TrainTinyImagenetBackdoorAttack(
                 base_path() + "TINYIMG",
                 transform=self.TRANSFORM,
                 not_aug_transform=self.NO_AUG_TRANSFORM,
-                poisoning_severity=POISONING_SEVERITY,
+                poisoning_transform=POISONING,
+                target_transform=TARGET_TRANSFORM,
+                poisoning_rate=POISONING_RATE,
             )
         else:
-            return TestTinyImagenetLabelPoisoning(
+            return TestTinyImagenetBackdoorAttack(
                 base_path() + "TINYIMG",
                 transform=self.TEST_TRANSFORM,
-                poisoning_severity=POISONING_SEVERITY,
+                poisoning_transform=POISONING,
+                trigger_rate=TRIGGER_RATE
             )
 
     def get_transform(self):
@@ -199,8 +215,8 @@ class SequentialTinyImagenetLabelPoisoning(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        return resnet18(SequentialTinyImagenetLabelPoisoning.N_CLASSES_PER_TASK
-                        * SequentialTinyImagenetLabelPoisoning.N_TASKS)
+        return resnet18(SequentialTinyImagenet.N_CLASSES_PER_TASK
+                        * SequentialTinyImagenet.N_TASKS)
 
     @staticmethod
     def get_loss():
@@ -232,4 +248,4 @@ class SequentialTinyImagenetLabelPoisoning(ContinualDataset):
 
     @staticmethod
     def get_minibatch_size():
-        return SequentialTinyImagenetLabelPoisoning.get_batch_size()
+        return SequentialTinyImagenet.get_batch_size()
