@@ -159,7 +159,7 @@ class TestTinyImagenetBackdoorAttack(MammothDataset):
         pass
 
 
-class SequentialTinyImagenet(ContinualDataset):
+class SequentialTinyImagenetBackdoorAttack(ContinualDataset):
 
     NAME = 'seq-tinyimg-backdoor-attack'
     SETTING = 'class-il'
@@ -215,8 +215,8 @@ class SequentialTinyImagenet(ContinualDataset):
 
     @staticmethod
     def get_backbone():
-        return resnet18(SequentialTinyImagenet.N_CLASSES_PER_TASK
-                        * SequentialTinyImagenet.N_TASKS)
+        return resnet18(SequentialTinyImagenetBackdoorAttack.N_CLASSES_PER_TASK
+                        * SequentialTinyImagenetBackdoorAttack.N_TASKS)
 
     @staticmethod
     def get_loss():
@@ -248,4 +248,4 @@ class SequentialTinyImagenet(ContinualDataset):
 
     @staticmethod
     def get_minibatch_size():
-        return SequentialTinyImagenet.get_batch_size()
+        return SequentialTinyImagenetBackdoorAttack.get_batch_size()
