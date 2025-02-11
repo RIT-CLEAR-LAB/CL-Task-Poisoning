@@ -122,7 +122,7 @@ class Buffer:
             assert n_tasks is not None
             self.task_number = n_tasks
             self.buffer_portion_size = buffer_size // n_tasks
-        self.attributes = ['examples', 'labels', 'logits', 'task_labels']
+        self.attributes = ['examples', 'labels', 'logits', 'task_labels', 'poisoned_flags']
 
     def to(self, device):
         self.device = device
@@ -135,7 +135,7 @@ class Buffer:
         return min(self.num_seen_examples, self.current_size, self.buffer_size)
 
     def init_tensors(self, examples: torch.Tensor, labels: torch.Tensor,
-                     logits: torch.Tensor, task_labels: torch.Tensor) -> None:
+                     logits: torch.Tensor, task_labels: torch.Tensor, poisoned_flags: torch.Tensor) -> None:
         """
         Initializes just the required tensors.
         :param examples: tensor containing the images
@@ -149,7 +149,7 @@ class Buffer:
                 typ = torch.int64 if attr_str.endswith('els') else torch.float32
                 setattr(self, attr_str, torch.full((self.buffer_size, *attr.shape[1:]), fill_value=-1, dtype=typ, device=self.device))
 
-    def add_data(self, examples, labels=None, logits=None, task_labels=None, ):
+    def add_data(self, examples, labels=None, logits=None, task_labels=None, poisoned_flags=None):
         """
         Adds the data to the memory buffer according to the reservoir strategy.
         :param examples: tensor containing the images
@@ -159,7 +159,7 @@ class Buffer:
         :return:
         """
         if not hasattr(self, 'examples'):
-            self.init_tensors(examples, labels, logits, task_labels)
+            self.init_tensors(examples, labels, logits, task_labels, poisoned_flags)
 
         for i in range(examples.shape[0]):
             if self.mode == 'reservoir' or self.mode == 'ring':
@@ -178,6 +178,8 @@ class Buffer:
                     self.logits[index] = logits[i].to(self.device)
                 if task_labels is not None:
                     self.task_labels[index] = task_labels[i].to(self.device)
+                if poisoned_flags is not None:
+                    self.poisoned_flags[index] = poisoned_flags[i].to(self.device)
 
     def get_data(self, size: int, transform: nn.Module = None, return_index=False) -> Tuple:
         """
